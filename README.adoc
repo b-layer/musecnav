@@ -3,7 +3,7 @@
 :toclevels: 3
 :experimental:
 :icons: font
-:sectlinks:
+//:sectlinks:
 ifdef::env-github[]
 :tip-caption: :bulb:
 :note-caption: :information_source:
@@ -41,7 +41,7 @@ there?
 
 == Overview
 
-_If you just want to jump in and go a quick read of <<_hot_keys, Hot Keys>> should be
+_If you just want to jump in and go a quick read of <<hot-keys, Hot Keys>> should be
 all that you need._
 
 I regularly edit text containing Asciidoc markup and thought it would convenient to
@@ -59,9 +59,9 @@ something that sounds so simple on paper. I try to cover most of that below (tho
 that's a WIP).
 
 Currently this is tested with Asciidoc and, lightly, with Markdown (see
-<<_known_issues, Known Issues>>). The 'mu' in musecnav is for 'markup' so the
+<<known-issues, Known Issues>>). The 'mu' in musecnav is for 'markup' so the
 idea is to support whatever formats are needed. There's a bit more information on
-supporting additional formats in <<_plans, Plans>>.
+supporting additional formats in <<plans, Plans>>.
 
 == Installation
 
@@ -78,10 +78,10 @@ Besides the obvious stuff mentioned above I note some less apparent details here
 
 You can use either a slide-up (from the status line) menu or, with newer versions of
 Vim, a popup window. With a compatible version you'll get the popup by default.
-Otherwise you'll see the slide-up. To change this see <<_settings, Settings>>.
+Otherwise you'll see the slide-up. To change this see <<settings, Settings>>.
 
 When the menu is displayed its state should always reflect the current section
-hierarchy and the current cursor position (see <<_reset, Hot Keys - Reset>>). As a
+hierarchy and the current cursor position (see <<reset, Hot Keys - Reset>>). As a
 result, it can be used just to 'get your bearings' in a large document.
 
 The sections visible at any particular time in the menu depend on what has been

@@ -45,18 +45,8 @@ let g:musecnav_popup_titles = ['Markup Section Headers', 'Up/Down or 1-99 then <
 " Instead of overwriting PMenu*, though, we can override new-style popup
 " colors using Popup/PopupSelected.
 
-" neon blue over black
-hi Popup guifg=#3030ff guibg=black
-" black over near white
-hi PopupSelected guifg=black guibg=#a0a0ff
-" aqua (lt) blue over navy (dk) blue
-"hi Popup guifg=#87ffaf guibg=#00005f
-" bluish-white over bluish-grey
-"hi PopupSelected guifg=#87ffaf guibg=#005f87
-" orange-ish over very dark brown
-"hi Popup guifg=#dc322f guibg=#222222
-" inverse of previous
-"hi Popup guifg=#222222 guibg=#dc322f
+"hi Popup guifg=#3030ff guibg=black
+"hi PopupSelected guifg=black guibg=#a0a0ff
 
 " User Commands {{{1
 
