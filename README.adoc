@@ -1,16 +1,25 @@
-= Vim plugin for (m)ark(u)p (sec)tion (nav)igation
-
-//:icons: font
-//:toc: top
-//:toclevels: 2
-//:hide-uri-scheme:
+= musecnav
+:toc: top
+:toclevels: 3
 :experimental:
+:icons: font
+:sectlinks:
+ifdef::env-github[]
+:tip-caption: :bulb:
+:note-caption: :information_source:
+:important-caption: :heavy_exclamation_mark:
+:caution-caption: :fire:
+:warning-caption: :warning:
+endif::[]
+//:hide-uri-scheme:
 // :source-language: python
-//:source-highlighter: rouge
-//:rouge-linenums-mode: inline
-//:source-highlighter: prettify
-//:source-highlighter: coderay
-//:coderay-linenums-mode: table
+
+ifdef::env-github[]
+:toc-placement!:
+toc::[]
+endif::[]
+
+Vim plugin for **M**ark**U**p **SEC**tion **NAV**igation
 
 == Disclaimer
 
@@ -21,9 +30,6 @@ people expressed interest in it so I'm sharing it but with the following caveats
   (though major bugs that I can easily reproduce will probably be fixed quickly).
 * Unless they happen to align with existing plans, enhancement requests are even less
   likely to be addressed (though I'll definitely read them).
-* I don't currently have time to review pull requests but may be open to that in the
-  future if there's much interest (though I'm not expecting this to reach a lot of
-  people).
 * This has only been tested on my personal PC but there I've tested using Vim in
   Cygwin and Ubuntu (by way of WSL) and using gvim on Windows 10. "Testing" mostly
   consists of me using it for what its intended for.
@@ -53,7 +59,7 @@ something that sounds so simple on paper. I try to cover most of that below (tho
 that's a WIP).
 
 Currently this is tested with Asciidoc and, lightly, with Markdown (see
-<<_markdown_issues, Markdown Issues>>). The 'mu' in musecnav is for 'markup' so the
+<<_known_issues, Known Issues>>). The 'mu' in musecnav is for 'markup' so the
 idea is to support whatever formats are needed. There's a bit more information on
 supporting additional formats in <<_plans, Plans>>.
 
@@ -195,7 +201,9 @@ reset (Ctrl-F7) but _some_ of those times. I need to investigate but it's rare s
 don't feel much urgency. I'd be interested in hearing from anyone having a
 significantly more negative go of it.
 
-== Markdown Issues
+== Known Issues
+
+=== Markdown
 
 There is currently rudimentary support for the Markdown format. The common ways of
 indicating headers are recognized per the following:
@@ -229,18 +237,23 @@ a code section (ie. delimited by `++```++`) containing Bash and it includes a Ba
 comment (e.g. '# this is a comment') in the first column it will be mistakenly
 identified as a Markdown header.
 
+=== Asciidoc
+
+Asciidoc has an include directive and one thing it allows is seamless inclusion of
+other Asciidoc formatted files. Currently, all sections in such included files are
+ignored.
+
+Only a single "level-0" section title is recognized (these are identified by a single
+`=` at the beginning of the line). While that is all that is allowed in the `article`
+and `manpage` doctypes the `book` doctype can have many. These represent a book's
+"parts" and they can contain multiple chapters (level 1).
+
 == Plans
 
 As mentioned earlier I may support additional markup formats. It's really easy to add
 new formats so it works most of the time. Just match a pattern. That hard(er) part is
 sniffing out the exceptions and handling them. For example, Asciidoc allows section
 headers independent of the main hierarchy by preceding them with `[discrete]`. Code
-had to be added to ignore these. Another example with Asciidoc but this one isn't yet
-handled...
+had to be added to ignore these.
 
-If you use Asciidoc feature allowing other files to be included in the master
-document the popup will ignore sections in those files. I will eventually correct
-this.
-
-At a minimum, I want to fix relatively common scenarios in Markdown that currently
-trip up _musecnav_ such as the one described in the previous section.
+At a minimum, I want to fix all outstanding Asciidoc issues and those Markdown issues that are likely to be encountered relatively frequently.
