@@ -24,20 +24,12 @@ Vim plugin for **M**ark**U**p **SEC**tion **NAV**igation
 == Disclaimer
 
 This plugin is a personal project that I made for my own education and use. A couple
-people expressed interest in it so I'm sharing it but with the following caveats:
+people expressed interest in it so I'm sharing it but with some mild warnings related
+to stability of the script, responsiveness to enhancement requests and non-critical
+bug reports, and things like that. Caveat emptor.
 
-* You can file bugs but I make no guarantees about when/if they'll be addressed
-  (though major bugs that I can easily reproduce will probably be fixed quickly).
-* Unless they happen to align with existing plans, enhancement requests are even less
-  likely to be addressed (though I'll definitely read them).
-* This has only been tested on my personal PC but there I've tested using Vim in
-  Cygwin and Ubuntu (by way of WSL) and using gvim on Windows 10. "Testing" mostly
-  consists of me using it for what its intended for.
-* There are no help docs. The sum total of documentation is this README.
-
-That _all_ being said, what was first and foremost an educational project has turned
-into a super useful tool to me that I use all the time so why the heck not put it out
-there?
+That being said, what was first and foremost an educational project has turned into a
+super useful tool to me that I use all the time so why the heck not put it out there?
 
 == Overview
 
@@ -228,6 +220,16 @@ indicating headers are recognized per the following:
   ------
 ----
 
+Having run through a relatively large number of open-source markdown files I've found
+that some people have little concern or knowledge of valid section flow (primarily
+meaning they will jump down more than one level between adjacent sections). There
+also seems to be a correlation between such people and use of the alternative header
+format. Besides, "keep your section numbering valid!", my advice (and a growing
+consensus, it seems) is to stick to the primary format (e.g. "## H2"). At this point
+I'm not putting any energy into robustly handling the alternative.
+
+Beyond that...
+
 There must be a blank line preceding each header. This helps eliminate some issues
 such as the one described next but if it turns out to be blocking valid markdown or
 otherwise more trouble than its worth I'll change it.
@@ -257,3 +259,8 @@ headers independent of the main hierarchy by preceding them with `[discrete]`. C
 had to be added to ignore these.
 
 At a minimum, I want to fix all outstanding Asciidoc issues and those Markdown issues that are likely to be encountered relatively frequently.
+
+Further out, I've thought a bit about the possibility of extending this to work
+beyond markup section headers. Examples: functions/methods for this or that
+programming language, Vim fold markers, user-defined delimiters, etc. That's getting
+quite a bit ahead of ourselves, though.

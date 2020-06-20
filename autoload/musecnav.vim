@@ -34,6 +34,12 @@ endif
 " higher than 1. (WIP)
 let g:musecnav_minlevel_default = 1
 
+" When enabled, try to continue processing document in the face of certain
+" non-conforming formats (ie. ignore offending lines). Otherwise, errors are
+" thrown in those situations, aborting processing. (WIP - don't expect any
+" miracles!)
+let g:musecnav_parse_lenient = 0
+
 " In-menu indication of cursor position 
 let g:musecnav_place_mark = '▶'
 
@@ -99,6 +105,7 @@ unlet s:save_cpo
 
 " Function s:Navigate {{{3
 
+" s:Navigate {{{4
 " Main entry point for normal use. Primary hotkeys call this.
 " If optional first param present and has value....
 "
@@ -107,7 +114,7 @@ unlet s:save_cpo
 "     3: Initialize section tree using data structure passed in param 2.
 "        Param 2 must be a list with same structure as WalkSections returns.
 " other: An exception will be thrown.
-"
+" }}}
 func! s:Navigate(...) abort
 "    call Dfunc("Navigate(numargs: ".string(a:000).")")
 
@@ -191,12 +198,14 @@ endfunc
 
 " Function s:InitSectionTree {{{3
 
+" s:InitSectionTree {{{4
 " Build the section header hierarchy.
 "
 " Optional args: 
 "   a:1 - for (re)initialize; 1 indicates 'soft' reset, 2 is 'hard' reset
 "         Also, 0 is valid but will be treated same as missing param 1.
 "   a:2 - starting line number for scan instead of default 1
+" }}}
 func! s:InitSectionTree(...) abort
 "    call Dfunc("InitSectionTree(".string(a:000).")")
     let l:force = 0
@@ -270,29 +279,34 @@ endfunc
 
 " Find next AsciiDoc(tor) section. See s:FindNextSection()
 func! s:NextSection_Asciidoc() abort
+"    call Dfunc("NextSect_Asciidoc()")
     let l:patt = '^=*\zs=\s'
     let l:matchline = search(l:patt, 'W')
     while l:matchline > 0
         let l:matchcol = getcurpos()[2]
         let l:matchlevel = l:matchcol-1
+"        call Decho("Match: [".l:matchline.",".l:matchcol.",".l:matchlevel."]")
 
         " There are at least two valid reasons for having non-blank line
         " before a section header: comment '//' and anchor '[[foo]]'.
         " Just look for [discrete] specifically and skip over those lines.
         let l:linem1 = l:matchline - 1
         if prevnonblank(l:linem1) == l:linem1 && getline(l:linem1) =~? '^\[discrete\]\s*$'
-"            "call Decho("Match at lineno ".l:matchline." preceded by '[discrete]'...skip")
+"            call Decho("Match at lineno ".l:matchline." preceded by '[discrete]'...skip")
             call setpos('.', [0, l:matchline + 1, 1])
             let l:matchline = search(l:patt, 'W')
             continue
         endif
 
-        return [l:matchline, l:matchcol, l:matchlevel]
+"        call Dret("NextSect_Asciidoc - returning match")
+        return [l:matchline, l:matchcol, l:matchlevel, 0]
     endwhile
 
-    return [0, 0, 0]
+"    call Dret("NextSect_Asciidoc - no match")
+    return [0, 0, 0, 0]
 endfunc
 
+" s:NextSection_Markdown() {{{4
 " Find next Markdown section based on these rules:
 "
 "    # H1
@@ -310,14 +324,21 @@ endfunc
 "    Alt-H2
 "    ------
 "
+" To handle the latter forms the following needs to happen:
+" * Set true for fourth element in returned list.
+" * Set matchline to the first of the two lines (the content)
+" * Upstream adjust any line reading or increment/decrement to
+"   compensate for the double line.
 " See also s:FindNextSection()
-"
+" }}}
 func! s:NextSection_Markdown() abort
+"    call Dfunc("NextSect_Markdown()")
     " Apparently some implementations don't require a space between the 
     " '#'s and the title text.
-    let l:patt = '\v%(^#*\zs#%(\s\S|[^#])|^[^#].*\n\zs[-=]{2,}$)'
+    let l:patt = '\v%(^#*\zs#%(\s\S|[^#])|^.*\n[-=]{2,}$)'
     let l:matchline = search(l:patt, 'W')
     while l:matchline > 0
+        let l:multiline = 1
         let l:matchcol = getcurpos()[2]
 
         " level determination
@@ -328,26 +349,31 @@ func! s:NextSection_Markdown() abort
             let l:matchlevel = 2
         else
             let l:matchlevel = l:matchcol-1
+            let l:multiline = 0
         endif
+"        call Decho("Match: [".l:matchline.",".l:matchcol.",".l:matchlevel."]")
 
-        let l:linem1 = l:matchline - 1
-        if prevnonblank(l:linem1) == l:linem1
+        let l:linem1 = l:matchline - 1 - l:multiline
+        if prevnonblank(l:linem1) == l:linem1 && l:matchlevel > 1
 "            call Decho("Non-empty line precedes header (".l:matchline."). SKIP!")
             call setpos('.', [0, l:matchline + 1, 1])
             let l:matchline = search(l:patt, 'W')
             continue
         endif
 
-        return [l:matchline, l:matchcol, l:matchlevel]
+"        call Dret("NextSect_Markdown - returning match")
+        return [l:matchline, l:matchcol, l:matchlevel, l:multiline]
     endwhile
 
-    return [0, 0, 0]
+"    call Dret("NextSect_Markdown - no match")
+    retur [0, 0, 0, 0]
 endfunc
 
 " Starting at current cursor position find the next section header in
 " the document and move the cursor to its location. Returns a list containing
-" [matchline, matchcol, matchlevel]. If no section headers are found matchline
-" will be 0.
+" [matchline, matchcol, matchlevel, multi]. The last value, multi, is a
+" boolean indicating whether the matched section was of the two-line variety.
+" (Currently markdown only.) If no headers are found all values will be 0.
 func! s:FindNextSection() abort
     if &ft ==? 'asciidoc'
         return s:NextSection_Asciidoc()
@@ -361,6 +387,7 @@ endfunc
 
 " Function s:WalkSections {{{3
 
+" s:WalkSections {{{4
 " Scan the file beginning at cursor position (usually line 1) and build a tree
 " representing the section hierarchy of the document from that point.
 "
@@ -373,28 +400,32 @@ endfunc
 "     [lineno, {treekey:line, line:[], subtree: func}]
 "     Also, call UpdateLevelMap(a:level, header)
 "   Header at level n+1 found => child
-"     move cursor up 1, recurse this func with n+1 and add returned
+"     move cursor up 1 or 2, recurse this func with n+1 and add returned
 "     descendant hierarchy to subtree of last added LL elem
 "   Header at level < n found => ancestor
-"     move cursor up 1, return LL
+"     move cursor up 1 or 2, return LL
 "   TODO Found special pattern => terminator (for skipping eof garbage)
 "     same as reaching end of document
 "   None of the above => error
 "     found level is deeper than 1 level down
-"
+" }}}
 func! s:WalkSections(level) abort
 "    call Dfunc("WalkSections(".a:level.")")
     let l:levellist = []
 
-    let [l:matchline, l:matchcol, l:matchlevel] = s:FindNextSection()
+    let [l:matchline, l:matchcol, l:matchlevel, l:multi] = s:FindNextSection()
 
     while l:matchline > 0
         let l:line = getline(l:matchline)
-"        call Decho("LVL".a:level.": match [lineno, col, line] is [ ".l:matchline.", ".l:matchcol.", ".l:line." ]")
+"        call Decho("LVL".a:level.": match [lineno, col, line, multi] is [".l:matchline.", ".l:matchcol.", ".l:line.", ".l:multi."]")
 
         if l:matchlevel != a:level && empty(l:levellist)
-"            call Dret("WalkSections - error")
-            throw "MU01: Illegal State (bad hierarchy)"
+            if g:musecnav_parse_lenient
+"                call Decho("Skipping header with unexpected level ".l:matchlevel)
+            else
+"                call Dret("WalkSections - error")
+                throw "MU01: Illegal State (bad hierarchy)"
+            endif
         endif
 
         if l:matchlevel == a:level
@@ -405,22 +436,26 @@ func! s:WalkSections(level) abort
         elseif l:matchlevel < a:level
 "            call Decho("LVL".a:level.": match type ** ANCESTOR **")
             " move cursor back a line so shallower level sees this header
-            call setpos('.', [0, l:matchline - 1, 1])
+            call setpos('.', [0, l:matchline - 1 - l:multi, 1])
 "            call Dret("WalkSections - return to ancestor")
             return l:levellist
 
         elseif l:matchlevel == a:level + 1
 "            call Decho("LVL".a:level.": match type ** CHILD **")
-            " move cursor back a line so deeper level sees this header
-            call setpos('.', [0, l:matchline - 1, 1])
+            " move cursor back so deeper level sees this header
+            call setpos('.', [0, l:matchline - 1 - l:multi, 1])
             let l:descendants = s:WalkSections(a:level + 1)
             call l:levellist[-1][1].subtree(l:descendants)
         else
-"            call Dret("WalkSections - throw error")
-            throw "MU01: Invalid Document (Level descent must be one at a time)"
+            if g:musecnav_parse_lenient
+"                call Decho("Skipping header with unexpected level ".l:matchlevel)
+            else
+"                call Dret("WalkSections - error")
+                throw "MU01: Invalid Document (Level descent must be one at a time)"
+            endif
         endif
 
-        let [l:matchline, l:matchcol, l:matchlevel] = s:FindNextSection()
+        let [l:matchline, l:matchcol, l:matchlevel, l:multi] = s:FindNextSection()
 
 "        call Decho("LVL".a:level.": iteration end search() ret:".l:matchline)
     endwhile
@@ -479,13 +514,14 @@ func! s:DrawMenu() abort
         endif
 
         if b:musecnav_data.line == l:menudata[l:idx]
-            let l:rowitem = substitute(l:rowitem, '== ', g:musecnav_place_mark . ' ', '')
+            let l:rowitem = substitute(l:rowitem, '\([#=]\)\{2} ', g:musecnav_place_mark . ' ', '')
             let l:hirownum = l:rownum
         else
-            let l:rowitem = substitute(l:rowitem, '== ', '  ', '')
+            let l:rowitem = substitute(l:rowitem, '\([#=]\)\{2} ', '  ', '')
         endif
 
-        let l:rowitem = substitute(l:rowitem, '=', '  ', 'g')
+
+        let l:rowitem = substitute(l:rowitem, '[#=]', '  ', 'g')
         let l:rowtext = printf("%2s", l:rownum) . ": " . l:rowitem
 "        call Decho("    into rowtext: " . l:rowtext)
         call add(l:displaymenu, l:rowtext)
@@ -728,7 +764,7 @@ endfunc
 " Returns: the node with the line number we are targeting
 "
 func! s:DescendToLine(line, tree, parent) abort
-"    call Dfunc("DescendToLine("line: ".a:line.", tree: ".string(a:tree)." parent: ".string(a:parent).")")
+"    call Dfunc("DescendToLine(line: ".a:line.", tree: ".string(a:tree)." parent: ".string(a:parent).")")
     let l:levellen = len(a:tree)
 
     let l:curridx = 0
