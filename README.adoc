@@ -34,7 +34,7 @@ super useful tool to me that I use all the time so why the heck not put it out t
 == Overview
 
 _If you just want to jump in and go a quick read of <<hot-keys, Hot Keys>> should be
-all that you need._
+all that you need after installation._
 
 I regularly edit text containing Asciidoc markup and thought it would convenient to
 be able to easily jump to any section in such documents. Since I'm a long-time coder 
@@ -100,6 +100,13 @@ I suspect if there's anything for which people would have a lot of differing ide
 about what is the "right" way, it's going to be related to this.
 
 === Hot Keys
+
+By default no keys are mapped. To enable the hotkeys described below add the
+following to your vimrc:
+
+    let g:musecnav_use_default_keymap = 1
+
+Otherwise refer to the documentation for help with defining your own hotkeys (TBD).
 
 kbd:[F7] :: Open the navigation menu (popup or message based depending on config).
 
@@ -195,6 +202,11 @@ significantly more negative go of it.
 
 == Known Issues
 
+TIP: Use the primary header formats for Asciidoc and Markdown: single-line, starting
+with one or more `=` (Asciidoc) or `#` (Markdown). I may improve handling of the
+secondary formats in the future but right now they're just not a priority (I never
+use them).
+
 === Markdown
 
 There is currently rudimentary support for the Markdown format. The common ways of
@@ -220,7 +232,7 @@ indicating headers are recognized per the following:
   ------
 ----
 
-Having run through a relatively large number of open-source markdown files I've found
+Having run through a relatively large number of open-source Markdown files I've found
 that some people have little concern or knowledge of valid section flow (primarily
 meaning they will jump down more than one level between adjacent sections). There
 also seems to be a correlation between such people and use of the alternative header
@@ -231,7 +243,7 @@ I'm not putting any energy into robustly handling the alternative.
 Beyond that...
 
 There must be a blank line preceding each header. This helps eliminate some issues
-such as the one described next but if it turns out to be blocking valid markdown or
+such as the one described next but if it turns out to be blocking valid Markdown or
 otherwise more trouble than its worth I'll change it.
 
 Some corner cases will trip up _musecnav_. For example, if you have
@@ -241,14 +253,18 @@ identified as a Markdown header.
 
 === Asciidoc
 
-Asciidoc has an include directive and one thing it allows is seamless inclusion of
-other Asciidoc formatted files. Currently, all sections in such included files are
-ignored.
-
 Only a single "level-0" section title is recognized (these are identified by a single
 `=` at the beginning of the line). While that is all that is allowed in the `article`
 and `manpage` doctypes the `book` doctype can have many. These represent a book's
 "parts" and they can contain multiple chapters (level 1).
+
+Asciidoc has an include directive and one thing it allows is seamless inclusion of
+other Asciidoc files. After conversion the primary file and the included files appear
+as a single document. Currently, included files are ignored but at some point I think
+it would be cool to allow navigatiaon of them. Their sections would be
+integrated in the navigation menu. Upon selection of a section the appropriate file
+would be loaded, perhaps in a new window, and focus/cursor shifted to the selected
+section header within.
 
 == Plans
 

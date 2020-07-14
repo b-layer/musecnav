@@ -1,13 +1,19 @@
+" musecnav autoload plugin file
+" Language:    Asciidoc and Markdown markup
+
 " Initialization {{{1
+"
+if exists('g:autoloaded_musecnav')
+  finish
+endif
+let g:autoloaded_musecnav = 1
+
+let s:save_cpo = &cpoptions
+set cpoptions&vim
 
 scriptencoding utf-8
 
-if exists('g:loaded_musecnav')
-  finish
-endif
-let g:loaded_musecnav = 1
-
-let g:musecnav_version = 102
+let g:musecnav_version = 104
 let g:musecnav_home = expand('<sfile>:p:h:h')
 " TODO: what is the actual min version for non-popup use?
 let g:musecnav_required_vim_version = '800'
@@ -17,17 +23,6 @@ if v:version < g:musecnav_required_vim_version
   finish
 endif
 
-let s:save_cpo = &cpoptions
-set cpoptions&vim
-
-
-if !exists('g:musecnav_use_popup')
-    let g:musecnav_use_popup = has('popupwin')
-endif
-
-if !exists('b:musecnav_data')
-    let b:musecnav_data = {}
-endif
 
 " Set higher to navigate subtree files, e.g. asciidoc (others?) allows
 " inclusion of files containing subtree beginning at (obviously) a level
@@ -46,66 +41,14 @@ let g:musecnav_place_mark = '▶'
 let g:musecnav_popup_title_idx = 1
 let g:musecnav_popup_titles = ['Markup Section Headers', 'Up/Down or 1-99 then <Enter>']
 
-" By default popups use PMenu/PMenuSel highlight group. In many color schemes
-" those aren't set which means the default color: an awful, garish pink.
-" Instead of overwriting PMenu*, though, we can override new-style popup
-" colors using Popup/PopupSelected.
 
-"hi Popup guifg=#3030ff guibg=black
-"hi PopupSelected guifg=black guibg=#a0a0ff
-
-" User Commands {{{1
-
-"if !exists(":Navigate")
-"" if you use it note the added flag -buffer
-"command! -buffer -nargs=? -complete=function Navigate call <SID>Navigate(<f-args>)
-"endif
-
-" Mapped Keys {{{1
-
-
-if !exists("no_musecnav_maps")
-
-    " All this allows user to assign an alternate key sequence in their vimrc
-
-    " Suggested/Conditional mapping keys...only if not already mapped by user
-    if !hasmapto('<Plug>MuSecNavNavigate')
-        nmap <unique> <F7> <Plug>MuSecNavNavigate
-    endif
-    if !hasmapto('<Plug>MuSecNavReset')
-        nmap <unique> <C-F7> <Plug>MuSecNavReset
-    endif
-    if !hasmapto('<Plug>MuSecNavReinit')
-        nmap <unique> <S-F7> <Plug>MuSecNavReinit
-    endif
-    if !hasmapto('<Plug>MuSecNavReset')
-    endif
-
-    " Now the <Plug> mappings that call <SID> mappings
-    noremap <script> <Plug>MuSecNavNavigate <SID>Navigate
-    " aka hard reset
-    noremap <script> <Plug>MuSecNavReset <SID>Reset
-    " aka soft reset
-    noremap <script> <Plug>MuSecNavReinit <SID>Reinit
-    
-    " Finally the <SID> mappings, ending indirection hell. These are visible
-    " only inside the script and call script local functions
-    noremap <silent> <SID>Navigate :call <SID>Navigate()<CR>
-    noremap <silent> <SID>Reset    :call <SID>Navigate(2)<CR>
-    noremap <silent> <SID>Reinit   :call <SID>Navigate(1)<CR>
-
-endif
-
-let &cpoptions = s:save_cpo
-unlet s:save_cpo
 
 " Functions {{{1
 
 " Script-local Functions {{{2
 
-" Function s:Navigate {{{3
-
-" s:Navigate {{{4
+" Function navigate {{{3
+"                                                                Navigate {{{4
 " Main entry point for normal use. Primary hotkeys call this.
 " If optional first param present and has value....
 "
@@ -114,9 +57,15 @@ unlet s:save_cpo
 "     3: Initialize section tree using data structure passed in param 2.
 "        Param 2 must be a list with same structure as WalkSections returns.
 " other: An exception will be thrown.
-" }}}
-func! s:Navigate(...) abort
+"                                                                          }}}
+func! musecnav#navigate(...) abort
 "    call Dfunc("Navigate(numargs: ".string(a:000).")")
+
+    if &ft !=? 'asciidoc' && &ft !=? 'markdown'
+"        call Dret("Navigate - Wrong filetype")
+        echohl WarningMsg | echo "Not a valid filetype: " . &ft | echohl None
+        return
+    endif
 
     let l:force = 0
     if !exists('b:musecnav_data')
@@ -130,6 +79,7 @@ func! s:Navigate(...) abort
 "        call Decho("Initialize with user-supplied tree: ".string(a:2))
         let b:musecnav_data.sections = a:2
     elseif a:0 != 0
+"        call Dret("Navigate - fatal MU10")
         throw "MU10: The specified parameters are not valid!"
     endif
 
@@ -137,25 +87,27 @@ func! s:Navigate(...) abort
     let l:numsects = len(b:musecnav_data.sections)
 "    call Decho("After section tree init we have ".l:numsects." sections")
     if l:numsects == 0
-        echoerr "Doesn't look like an asciidoc file. Aborting!"
         call winrestview(l:view)
+        echohl WarningMsg | echo "Unrecognized syntax. Aborting." | echohl None
 "        call Dret("Navigate - abort")
         return
     endif
 
     " If cursor has moved since last menu selection determine what section it
     " currently resides in and make that the new "current section" before
-    " building the menu. (Skipped if cursor is above first section header.)
+    " building the menu.
     let l:currline = getcurpos()[1]
 "    call Decho("last line: ".b:musecnav_data.line ." curr line: ".l:currline)
 
     if b:musecnav_data.line != l:currline
-        if l:currline >= b:musecnav_data.sections[0][0]
+        if l:currline >= b:musecnav_data.sections[0][0] "sver1
             " Search b/w for a section header. First found is current section.
             " First move cursor down a line to more easily handle the corner
             " case of cursor on first section and very close to doc root.
-            +
-            let l:headerline = search('\n\n^=*\zs=\s', 'bcsW')
+            "+
+            " \%^ = start of file
+            let l:headerline = search('\n\n^=*\zs=\s', 'bcsW') "sver1
+            "let l:headerline = search('\v%(%^|\n\n)\=*\zs\=\s', 'bcsW') "sver2
             if l:headerline == 0
 "                call Dret("Navigate - fatal MU20")
                 throw "MU20: No section header found above cursor line"
@@ -169,11 +121,11 @@ func! s:Navigate(...) abort
             let b:musecnav_data.line = l:headerline
             " move cursor back to starting point (mark ' set by search())
             call cursor(getpos("''")[1:]) | -
-        else
+        else "sver1
 "            call Decho("Line and level reset to 0")
-            let b:musecnav_data.line = 0
-            let b:musecnav_data.level = 0
-        endif
+            let b:musecnav_data.line = 0 "sver1
+            let b:musecnav_data.level = 0 "sver1
+        endif "sver1
     endif
 
     " For non-popup menu a continuous draw-menu/get-input/process-input cycle
@@ -198,14 +150,14 @@ endfunc
 
 " Function s:InitSectionTree {{{3
 
-" s:InitSectionTree {{{4
+"                                                         InitSectionTree {{{4
 " Build the section header hierarchy.
 "
 " Optional args: 
 "   a:1 - for (re)initialize; 1 indicates 'soft' reset, 2 is 'hard' reset
 "         Also, 0 is valid but will be treated same as missing param 1.
 "   a:2 - starting line number for scan instead of default 1
-" }}}
+"                                                                          }}}
 func! s:InitSectionTree(...) abort
 "    call Dfunc("InitSectionTree(".string(a:000).")")
     let l:force = 0
@@ -224,6 +176,8 @@ func! s:InitSectionTree(...) abort
 
 "    call Decho("InitSectionTree processed params: ".l:force.", ".l:lineno.")")
 
+    " XXX read first line (lines?) to try to find first header and
+    " set minlevel based on its level (usually 0) (asciidoc only?)
     let l:lastlineno = line('$')
     if exists('b:musecnav_data.num_pages') && b:musecnav_data.num_pages != l:lastlineno
         let l:force = max([1, l:force])
@@ -280,8 +234,11 @@ endfunc
 " Find next AsciiDoc(tor) section. See s:FindNextSection()
 func! s:NextSection_Asciidoc() abort
 "    call Dfunc("NextSect_Asciidoc()")
-    let l:patt = '^=*\zs=\s'
-    let l:matchline = search(l:patt, 'W')
+    let l:patt = '^=*\zs=\s' "sver1
+    let l:matchline = search(l:patt, 'W') "sver1
+    "let l:equals = repeat('=', b:musecnav_minlevel + 1) "sver2
+    "let l:patt = '^'.l:equals.'*\zs=\s' "sver2
+    "let l:matchline = search(l:patt, 'Wc') "sver2
     while l:matchline > 0
         let l:matchcol = getcurpos()[2]
         let l:matchlevel = l:matchcol-1
@@ -294,7 +251,8 @@ func! s:NextSection_Asciidoc() abort
         if prevnonblank(l:linem1) == l:linem1 && getline(l:linem1) =~? '^\[discrete\]\s*$'
 "            call Decho("Match at lineno ".l:matchline." preceded by '[discrete]'...skip")
             call setpos('.', [0, l:matchline + 1, 1])
-            let l:matchline = search(l:patt, 'W')
+            let l:matchline = search(l:patt, 'W') "sver1
+            "let l:matchline = search(l:patt, 'Wc') "sver2
             continue
         endif
 
@@ -306,7 +264,7 @@ func! s:NextSection_Asciidoc() abort
     return [0, 0, 0, 0]
 endfunc
 
-" s:NextSection_Markdown() {{{4
+"                                                    NextSection_Markdown {{{4
 " Find next Markdown section based on these rules:
 "
 "    # H1
@@ -330,13 +288,14 @@ endfunc
 " * Upstream adjust any line reading or increment/decrement to
 "   compensate for the double line.
 " See also s:FindNextSection()
-" }}}
+"                                                                          }}}
 func! s:NextSection_Markdown() abort
 "    call Dfunc("NextSect_Markdown()")
     " Apparently some implementations don't require a space between the 
     " '#'s and the title text.
     let l:patt = '\v%(^#*\zs#%(\s\S|[^#])|^.*\n[-=]{2,}$)'
-    let l:matchline = search(l:patt, 'W')
+    let l:matchline = search(l:patt, 'W') "sver1
+    "let l:matchline = search(l:patt, 'Wc') "sver2
     while l:matchline > 0
         let l:multiline = 1
         let l:matchcol = getcurpos()[2]
@@ -357,7 +316,8 @@ func! s:NextSection_Markdown() abort
         if prevnonblank(l:linem1) == l:linem1 && l:matchlevel > 1
 "            call Decho("Non-empty line precedes header (".l:matchline."). SKIP!")
             call setpos('.', [0, l:matchline + 1, 1])
-            let l:matchline = search(l:patt, 'W')
+            let l:matchline = search(l:patt, 'W') "sver1
+            "let l:matchline = search(l:patt, 'Wc') "sver2
             continue
         endif
 
@@ -369,25 +329,33 @@ func! s:NextSection_Markdown() abort
     retur [0, 0, 0, 0]
 endfunc
 
+"                                                         FindNexSections {{{4
 " Starting at current cursor position find the next section header in
 " the document and move the cursor to its location. Returns a list containing
 " [matchline, matchcol, matchlevel, multi]. The last value, multi, is a
 " boolean indicating whether the matched section was of the two-line variety.
 " (Currently markdown only.) If no headers are found all values will be 0.
+"                                                                          }}}
 func! s:FindNextSection() abort
+    "call cursor(0, 999) "sver2
     if &ft ==? 'asciidoc'
-        return s:NextSection_Asciidoc()
+        return s:NextSection_Asciidoc() "sver1
+        "let l:ret = s:NextSection_Asciidoc() "sver2
     elseif &ft ==? 'markdown'
-        return s:NextSection_Markdown()
+        return s:NextSection_Markdown() "sver1
+        "let l:ret = s:NextSection_Markdown() "sver2
     else
         throw "MU11: Unknown or invalid filetype " . &ft
     endif
+
+    "call cursor(0, 1) "sver2
+    "return l:ret "sver2
 endfunc
 "let s:NextSecFuncs = #{ asciidoc: function(s:NextSection_AsciiDoc()) }
 
 " Function s:WalkSections {{{3
 
-" s:WalkSections {{{4
+"                                                            WalkSections {{{4
 " Scan the file beginning at cursor position (usually line 1) and build a tree
 " representing the section hierarchy of the document from that point.
 "
@@ -408,7 +376,7 @@ endfunc
 "     same as reaching end of document
 "   None of the above => error
 "     found level is deeper than 1 level down
-" }}}
+"                                                                          }}}
 func! s:WalkSections(level) abort
 "    call Dfunc("WalkSections(".a:level.")")
     let l:levellist = []
@@ -416,7 +384,9 @@ func! s:WalkSections(level) abort
     let [l:matchline, l:matchcol, l:matchlevel, l:multi] = s:FindNextSection()
 
     while l:matchline > 0
-        let l:line = getline(l:matchline)
+        " Exclude ID element following section name if present
+        let l:line = substitute(getline(l:matchline),
+                    \ '\s*\[\[[^[\]]*\]\]\s\?$', '', '')
 "        call Decho("LVL".a:level.": match [lineno, col, line, multi] is [".l:matchline.", ".l:matchcol.", ".l:line.", ".l:multi."]")
 
         if l:matchlevel != a:level && empty(l:levellist)
@@ -436,22 +406,22 @@ func! s:WalkSections(level) abort
         elseif l:matchlevel < a:level
 "            call Decho("LVL".a:level.": match type ** ANCESTOR **")
             " move cursor back a line so shallower level sees this header
-            call setpos('.', [0, l:matchline - 1 - l:multi, 1])
+            call setpos('.', [0, l:matchline - 1 - l:multi, 1]) "sver1
 "            call Dret("WalkSections - return to ancestor")
             return l:levellist
 
         elseif l:matchlevel == a:level + 1
 "            call Decho("LVL".a:level.": match type ** CHILD **")
             " move cursor back so deeper level sees this header
-            call setpos('.', [0, l:matchline - 1 - l:multi, 1])
+            call setpos('.', [0, l:matchline - 1 - l:multi, 1]) "sver1
             let l:descendants = s:WalkSections(a:level + 1)
             call l:levellist[-1][1].subtree(l:descendants)
         else
             if g:musecnav_parse_lenient
-"                call Decho("Skipping header with unexpected level ".l:matchlevel)
+                echohl WarningMsg | echo "Skipped unexpected level ".l:matchlevel | echohl None
             else
 "                call Dret("WalkSections - error")
-                throw "MU01: Invalid Document (Level descent must be one at a time)"
+                throw "MU01: Invalid hierarchy. See line ".l:matchline
             endif
         endif
 
@@ -467,6 +437,7 @@ endfunc
 
 " Function s:DrawMenu {{{3
 
+"                                                                DrawMenu {{{4
 " Show menu representing current state of navigation either above the command
 " line or in a popup window. If not using popups get the user's selection and
 " return it.  Otherwise, popups handle user input in a separate thread so this
@@ -490,7 +461,7 @@ endfunc
 "      Selection parent (at level N-1)
 "        All of the selection parent's children (level N)
 "          Selected section's subtree (level N+1 and down)
-"
+"                                                                          }}}
 func! s:DrawMenu() abort
 "    call Dfunc("DrawMenu()")
 
@@ -503,7 +474,7 @@ func! s:DrawMenu() abort
     let l:displaymenu = []
     let l:hirownum = 0
 
-    if !g:musecnav_use_popup
+    if !b:musecnav_use_popup
         echom '--------'
     endif
     while l:idx < len(l:menudata)-1
@@ -526,7 +497,7 @@ func! s:DrawMenu() abort
 "        call Decho("    into rowtext: " . l:rowtext)
         call add(l:displaymenu, l:rowtext)
 
-        if !g:musecnav_use_popup
+        if !b:musecnav_use_popup
             echom l:rowtext
         endif
         let l:idx += 2
@@ -539,7 +510,7 @@ func! s:DrawMenu() abort
     let l:choice = -1
 "    call Decho("Display menu len: ".len(l:displaymenu)." data: ".string(l:displaymenu))
     let l:title = ' ' .g:musecnav_popup_titles[g:musecnav_popup_title_idx] . ' '
-    if g:musecnav_use_popup
+    if b:musecnav_use_popup
         let popid = popup_menu(l:displaymenu, #{
                     \ title: l:title,
                     \ highlight: 'Popup',
@@ -555,7 +526,7 @@ func! s:DrawMenu() abort
     else
         echom '--------'
         let l:choice = input("Enter number of section: ")
-        while strlen(l:choice) && type(eval(l:choice)) != 0
+        while strlen(l:choice) && type(eval(l:choice)) != v:t_number
             echohl WarningMsg | echo "You must enter a valid number" | echohl None
             let l:choice = input("Enter number of section: ")
         endwhile
@@ -576,8 +547,7 @@ endfunc
 func! s:ProcessSelection(id, choice) abort
 "    call Dfunc("ProcessSelection(id:".a:id.", choice:".a:choice.")")
     if a:id == -1
-        " Should only get here from popup
-        if g:musecnav_use_popup
+        if b:musecnav_use_popup
 "            call Dret("ProcessSelection - exception")
             throw "MU02: Illegal State - non-popup id but popup flag set"
         endif
@@ -593,23 +563,24 @@ func! s:ProcessSelection(id, choice) abort
 
     let b:musecnav_data.line = l:chosendata
     let b:musecnav_data.level = max([0, stridx(l:chosenitem, " ") - 1])
-"
+
 "    call Decho("Navigate to line ".b:musecnav_data.line." (level ".b:musecnav_data.level.")")
     exe b:musecnav_data.line
-    " vertically center the cursor line
     norm! zz
+    " Clear the menu digit buffer
+    let b:musecnav_select_buf = -1
 "    call Dret("ProcessSelection")
 endfunc
 
-let b:musecnav_select_buf = -1
-
 " Function s:ProcessMenuDigit {{{3
 
+"                                                        ProcessMenuDigit {{{4
 " A bit of a state machine for handling menu row numbers which make it easier
 " for the user to jump to a section header when there are many such headers.
 " The total number of headers and whether the user is entering the first or
 " second (if applicable) digit of their choice determine what happens. (e.g.
 " can/should we move to row 2 after the user enters the first digit of 25)
+"                                                                          }}}
 func! s:ProcessMenuDigit(rows, entry) abort
 "    call Dfunc("ProcessMenuDigit(rows:".a:rows.", entry:".a:entry.")")
     let l:ret = -99
@@ -660,6 +631,7 @@ endfunc
 
 " Function s:MenuizeTree {{{3
 
+"                                                             MenuizeTree {{{4
 " Build and return a data structure containing everything required to render a
 " section header menu.
 "
@@ -667,7 +639,7 @@ endfunc
 " recursive descents). 'Tis not ideal. We're talking small trees here and it's
 " perfectly performant on my machine but could be an issue on lesser machines.
 " Investigate if this is ever shared.
-"
+"                                                                          }}}
 func! s:MenuizeTree(level, line, tree) abort
 "    call Dfunc("MenuizeTree(lvl: ".a:level.", line: ".a:line.", tree: ".string(a:tree).")")
 
@@ -749,6 +721,7 @@ endfunc
 
 " Function s:DescendToLine {{{3
 
+"                                                           DescendToLine {{{4
 " Navigates a (sub)tree looking for the specified line.
 "
 " Each level is traversed 'laterally' until we reach the node that we
@@ -762,7 +735,7 @@ endfunc
 "   parent : node that contains the (sub)tree we are currently navigating
 "
 " Returns: the node with the line number we are targeting
-"
+"                                                                          }}}
 func! s:DescendToLine(line, tree, parent) abort
 "    call Dfunc("DescendToLine(line: ".a:line.", tree: ".string(a:tree)." parent: ".string(a:parent).")")
     let l:levellen = len(a:tree)
@@ -867,8 +840,14 @@ endfunc
 " Function s:function {{{3
 
 " Returns a funcref to the script-local function with given name
-function! s:function(name)
-  return function(substitute(a:name,'^s:',matchstr(expand('<sfile>'), '<SNR>\d\+_'),''))
+function! s:getfuncref(name)
+    "return function(substitute(a:name,'^s:',matchstr(expand('<sfile>'), '<SNR>\d\+_'),''))
+    return function(s:resolvefname(a:name))
+endfunction
+"
+" Return resolved name of script-local function with given unresolved name
+function! s:resolvefname(unresolved)
+    return substitute(a:unresolved,'^s:',matchstr(expand('<sfile>'), '<SNR>\d\+_'),'')
 endfunction
 
 " Global Functions {{{2
@@ -876,11 +855,10 @@ endfunction
 " Popup Functions {{{3
 
 " As an enhancement to popup menus we number menu elements (section headers)
-" and allow the user to enter one of those numbers in order to move the selection to that line.  (For large docs with many sections Up/Down just
+" and allow the user to enter one of those numbers in order to move the
+" selection to that line.  (For large docs with many sections Up/Down just
 " doesn't cut it.)
 func! musecnav#MenuFilter(id, key) abort
-    "call Xfunc("musecnav#MenuFilter(id:".a:id.", key:".a:key.")")
-
     let l:last_key = getwinvar(a:id, 'last_key')
     call setwinvar(a:id, 'last_key', a:key)
 
@@ -889,17 +867,15 @@ func! musecnav#MenuFilter(id, key) abort
         if l:rownum > 0
             call win_execute(a:id, 'call cursor('.l:rownum.', 1)')
         endif
-        "call Xret("musecnav#MenuFilter - number processed ".a:key)
         return 1
     elseif match(a:key, '\r') >= 0 && empty(l:last_key)
         " Exit when Enter hit twice in a row
         call popup_close(a:id)
-        "call Xret("Exiting due to Enter after submission")
+        echohl WarningMsg | echo "Exiting due to Enter after submission" | echohl None
         return 1
     endif
 
     " No shortcut, pass to generic filter
-    "call Xret("musecnav#MenuFilter - fall back to default handler")
     return popup_filter_menu(a:id, a:key)
 endfunc
 
@@ -944,13 +920,10 @@ endfunc
 
 " Currently using this as a trigger to source this file. Called from autoload
 " file for musecnav when a markup file type is indicated.
-func! musecnav#Initialize()
+func! musecnav#activate()
     return
 endfunc
 
-" Returns a funcref for the function with the given name.
-" Allows for calling script-local functions from outside this script.
-"function! Funkchun(name)
-  "return s:function(a:name)
-"endfunction
+let &cpoptions = s:save_cpo
+unlet s:save_cpo
 
