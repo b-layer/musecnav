@@ -106,7 +106,8 @@ following to your vimrc:
 
     let g:musecnav_use_default_keymap = 1
 
-Otherwise refer to the documentation for help with defining your own hotkeys (TBD).
+Otherwise see <<key-mappings, Key Mappings>> for help with defining your
+own hotkeys.
 
 kbd:[F7] :: Open the navigation menu (popup or message based depending on config).
 
@@ -174,20 +175,55 @@ at once, and I regularly navigate a 250-section bad boy, is about 80.)
 
 == Settings
 
-There are currently just a couple user accessible settings...
+=== Key Mappings
 
-Turn off popups with
+As mentioned in the <<hot-keys, Hot Keys>> section you can enable default key
+mappings with:
+
+    let g:musecnav_use_default_keymap = 1
+
+If you'd prefer to define your own mappings it works like most plugins out there:
+find the applicable `<Plug>` mappings and map the desired key(s) to the ones of
+interest. You can find the `<Plug>` mappings for musecnav with this:
+
+    filter /musecnav/ map
+
+The most important one is that which launches the navigation menu/popup.
+Specifically, `<Plug>MuSecNavNavigate`. Using the default keys as an example a
+mapping to that would look like this:
+
+        nmap <F7> <Plug>MuSecNavNavigate
+
+The only other `<Plug>` mappings you might want to consider configuring are
+`<Plug>MuSecNavReset` and `<Plug>MuSecNavReinit`. Their functionality is described
+here: <<reset, Hot Keys - Reset>>.
+
+=== Popup Menu Colors
+
+If you are using the popup menu, note that Vim popups are colored based on highlight
+groups `Popup` and `PopupSelected` or, if those are not set, `PMenu` and `PMenuSel`.
+Because popups are relatively new you'll find that `Popup`/`PopupSelected` are rarely
+set in color schemes. That means the `PMenu` groups are used and those aren't
+explicitly set too often either which means you end up with the default for `PMenu`
+which is a garish pink/violet. So I decided to define the two `Popup*` groups by
+default. Instead of a fixed set of colors, though, I link them to other highlight
+groups. This way they will match (usually) whatever color scheme you are currently
+using.
+
+If you still want to override them you are free too. Example:
+
+    hi Popup guifg=#3030ff guibg=black
+    hi PopupSelected guifg=black guibg=#a0a0ff
+
+=== Other Settings
+
+Turn off popups and enable the slide up navigation menu with:
 
     let g:musecnav_use_popup = 0
 
 Change the in-menu 'current section' indicator like so:
 
     let g:musecnav_place_mark = '*'
-
-Change the popup menu color scheme by setting Popup and PopupSelected highlight, e.g.
-
-    hi Popup guifg=#3030ff guibg=black
-    hi PopupSelected guifg=black guibg=#a0a0ff
 
 == Performance
 

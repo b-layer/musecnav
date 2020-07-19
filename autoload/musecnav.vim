@@ -66,12 +66,16 @@ func! musecnav#navigate(...) abort
         echohl WarningMsg | echo "Not a valid filetype: " . &ft | echohl None
         return
     endif
-
-    let l:force = 0
     if !exists('b:musecnav_data')
         let b:musecnav_data = {}
     endif
+    if !exists('b:musecnav_use_popup')
+        " FYI popups introduced in 8.1 patch 1517
+        let b:musecnav_use_popup = has('popupwin')
+    endif
 
+
+    let l:force = 0
     if a:0 == 1 && (a:1 == 1 || a:1 == 2)
         let l:force = a:1
 "        call Decho("Reinitializate force=". l:force)
@@ -87,7 +91,6 @@ func! musecnav#navigate(...) abort
     let l:numsects = len(b:musecnav_data.sections)
 "    call Decho("After section tree init we have ".l:numsects." sections")
     if l:numsects == 0
-        call winrestview(l:view)
         echohl WarningMsg | echo "Unrecognized syntax. Aborting." | echohl None
 "        call Dret("Navigate - abort")
         return
@@ -871,7 +874,6 @@ func! musecnav#MenuFilter(id, key) abort
     elseif match(a:key, '\r') >= 0 && empty(l:last_key)
         " Exit when Enter hit twice in a row
         call popup_close(a:id)
-        echohl WarningMsg | echo "Exiting due to Enter after submission" | echohl None
         return 1
     endif
 
@@ -911,7 +913,36 @@ func! musecnav#InfoDump()
     echo printf("Last Menu: %s\n\n", b:musecnav_data.last_menu_text
     echo printf("Level Map: %s\n\n", b:musecnav_data.level_map)
     echo printf("Sections: %s\n\n", b:musecnav_data.sections)
-    echo printf("version: %s\n\n", g:musecnav_vers)
+    echo printf("version: %s\n\n", g:musecnav_version)
+endfunc
+
+
+"                                                            ShiftPopupHi {{{4
+" Changes the linked highlight group for group Popup or PopupSelected.
+" Both of those have a pre-configured list of link targets. This function
+" will cycle through the appropriate list (determined by the function param)
+" and the value is linked to the associated group (Popup or PopupSelected).
+"                                                                          }}}
+func! musecnav#ShiftPopupHi(forsel)
+    if g:musecnav_popup_modifiable == 0
+        return
+    endif
+
+    if !exists('b:musecnav_popup_hiidx')
+        let b:musecnav_popup_hiidx = [0, 0]
+    endif
+
+    let l:type = 0
+    let l:group = "Popup"
+    if a:forsel
+        let l:type = 1
+        let l:group .= "Selected"
+    endif
+    let l:size = len(g:musecnav_popup_higroups[l:type])
+    let b:musecnav_popup_hiidx[l:type] =
+                \ (b:musecnav_popup_hiidx[l:type]+1)%l:size
+    exe 'hi link ' . l:group . ' ' .
+        \ g:musecnav_popup_higroups[l:type][b:musecnav_popup_hiidx[l:type]]
 endfunc
 
 func! musecnav#DataReset()
@@ -924,6 +955,8 @@ func! musecnav#activate()
     return
 endfunc
 
+" Config Undo {{{1
+" TODO: complete undo of config
 let &cpoptions = s:save_cpo
 unlet s:save_cpo
 

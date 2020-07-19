@@ -3,24 +3,21 @@
 
 " Initialization {{{1
 
-if exists('b:loaded_musecnav')
+if exists('g:loaded_musecnav')
   finish
 endif
-let b:loaded_musecnav = 1
+let g:loaded_musecnav = 1
 
 let s:save_cpo = &cpoptions
 set cpoptions&vim
 
 scriptencoding utf-8
 
-if !exists('b:musecnav_use_popup')
-    " FYI popups introduced in 8.1 patch 1517
-    let b:musecnav_use_popup = has('popupwin')
-endif
+let g:musecnav_popup_higroups = [
+            \ ['Statement', 'Identifier', 'Constant', 'String'],
+            \ ['Todo', 'WildMenu', 'Warning']]
 
-if !exists('b:musecnav_data')
-    let b:musecnav_data = {}
-endif
+let g:musecnav_popup_modifiable = 0
 
 if !exists('g:musecnav_popup_fixed_colors')
     " TODO: figure out hi
@@ -30,8 +27,11 @@ if !exists('g:musecnav_popup_fixed_colors')
     " colors using Popup/PopupSelected.
     "hi Popup guifg=#3030ff guibg=black
     "hi PopupSelected guifg=black guibg=#a0a0ff
-    hi link Popup Statement
-    hi link PopupSelected Todo
+    if hlID("Popup") == 0
+        hi link Popup Statement
+        hi link PopupSelected Todo
+        let g:musecnav_popup_modifiable = 1
+    endif
 endif
 
 " User Commands {{{1
@@ -70,8 +70,8 @@ augroup musecnav
     autocmd FileType asciidoc,markdown call musecnav#activate()
 augroup END
 
+" Config Undo {{{1
 " TODO: complete undo of config
-"
 let &cpoptions = s:save_cpo
 unlet s:save_cpo
 
