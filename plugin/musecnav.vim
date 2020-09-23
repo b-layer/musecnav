@@ -13,6 +13,20 @@ set cpoptions&vim
 
 scriptencoding utf-8
 
+"  user-visible (theoretically) global settings {{{2
+
+" When enabled, try to continue processing document in the face of certain
+" non-conforming formats (ie. ignore offending lines). Otherwise, errors are
+" thrown in those situations, aborting processing. (WIP - don't expect any
+" miracles!)
+let g:musecnav_parse_lenient = 0
+
+" In-menu indication of cursor position 
+let g:musecnav_place_mark = '▶'
+
+let g:musecnav_popup_title_idx = 1
+let g:musecnav_popup_titles = ['Markup Section Headers', 'Up/Down or 1-99 then <Enter>']
+
 let g:musecnav_popup_higroups = [
             \ ['Statement', 'Identifier', 'Constant', 'String'],
             \ ['Todo', 'WildMenu', 'Warning']]
@@ -34,6 +48,8 @@ if !exists('g:musecnav_popup_fixed_colors')
     endif
 endif
 
+let g:musecnav_refresh_checks='bar,buflines,foo'  " headertext, headerloc
+
 " User Commands {{{1
 
 if !exists(":Navigate")
@@ -42,25 +58,25 @@ endif
 
 " Mapped Keys {{{1
 
-noremap <script> <Plug>MuSecNavNavigate  :call musecnav#navigate()<CR>
+noremap <script> <Plug>MusecnavNavigate  :call musecnav#navigate()<CR>
 " aka soft reset
-noremap <script> <Plug>MuSecNavReinit    :call musecnav#navigate(1)<CR>
+noremap <script> <Plug>MusecnavReinit    :call musecnav#navigate(1)<CR>
 " aka hard reset                        
-noremap <script> <Plug>MuSecNavReset     :call musecnav#navigate(2)<CR>
+noremap <script> <Plug>MusecnavReset     :call musecnav#navigate(2)<CR>
 
 if !exists("no_plugin_maps") && !exists("no_musecnav_maps") &&  
     \ exists("musecnav_use_default_keymap") && musecnav_use_default_keymap
 
-    if !hasmapto('<Plug>MuSecNavNavigate')
-        nmap <unique> <F7> <Plug>MuSecNavNavigate
+    if !hasmapto('<Plug>MusecnavNavigate')
+        nmap <unique> <F7> <Plug>MusecnavNavigate
     endif
-    if !hasmapto('<Plug>MuSecNavReset')
-        nmap <unique> <C-F7> <Plug>MuSecNavReset
+    if !hasmapto('<Plug>MusecnavReset')
+        nmap <unique> <C-F7> <Plug>MusecnavReset
     endif
-    if !hasmapto('<Plug>MuSecNavReinit')
-        nmap <unique> <S-F7> <Plug>MuSecNavReinit
+    if !hasmapto('<Plug>MusecnavReinit')
+        nmap <unique> <S-F7> <Plug>MusecnavReinit
     endif
-    if !hasmapto('<Plug>MuSecNavReset')
+    if !hasmapto('<Plug>MusecnavReset')
     endif
 endif
 

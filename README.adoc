@@ -142,9 +142,9 @@ kbd:[Ctrl+Shift+F7] :: 'Hard reset'. Rescan section headers, reset the
 
 A nice feature is being able to choose sections by entering the associated number.
 (By default Vim popups don't support this which means you might have 50 sections on
-screen but no way to navigate them except up or down, one line at a time!) That being
-said, the way I implemented _might_ seem a little peculiar. So I spell out the
-algorithm here.
+screen but no way to navigate them except up or down, one line at a time!) That
+being said, the way I implemented things _might_ seem a little peculiar. So I spell
+out the algorithm here.
 
 There is a 1-digit 'buffer' that is empty when menu is opened.
 
@@ -189,13 +189,13 @@ interest. You can find the `<Plug>` mappings for musecnav with this:
     filter /musecnav/ map
 
 The most important one is that which launches the navigation menu/popup.
-Specifically, `<Plug>MuSecNavNavigate`. Using the default keys as an example a
+Specifically, `<Plug>MusecnavNavigate`. Using the default keys as an example a
 mapping to that would look like this:
 
-        nmap <F7> <Plug>MuSecNavNavigate
+        nmap <F7> <Plug>MusecnavNavigate
 
 The only other `<Plug>` mappings you might want to consider configuring are
-`<Plug>MuSecNavReset` and `<Plug>MuSecNavReinit`. Their functionality is described
+`<Plug>MusecnavReset` and `<Plug>MusecnavReinit`. Their functionality is described
 here: <<reset, Hot Keys - Reset>>.
 
 === Popup Menu Colors
@@ -297,7 +297,7 @@ and `manpage` doctypes the `book` doctype can have many. These represent a book'
 Asciidoc has an include directive and one thing it allows is seamless inclusion of
 other Asciidoc files. After conversion the primary file and the included files appear
 as a single document. Currently, included files are ignored but at some point I think
-it would be cool to allow navigatiaon of them. Their sections would be
+it would be cool to allow navigation of them. Their sections would be
 integrated in the navigation menu. Upon selection of a section the appropriate file
 would be loaded, perhaps in a new window, and focus/cursor shifted to the selected
 section header within.
