@@ -113,7 +113,8 @@ kbd:[F7] :: Open the navigation menu (popup or message based depending on config
 
 ==== Popup Menu
 
-kbd:[Up]/kbd:[Down] or kbd:[J]/kbd:[K] :: Select row above/below the currently selected row.
+kbd:[J]/kbd:[K] or kbd:[Down]/kbd:[Up] :: Select row below/above the currently selected row.
+kbd:[Shif+J]/kbd:[Shif+K] :: Select last/first row.
 Numbers 1-99 :: Jump to a row by number (see next section).
 kbd:[Enter] :: Go to section matching selected row. Menu remains open. If you
 hit kbd:[Enter] again immediately (without choosing another row) the menu will close.
@@ -135,7 +136,7 @@ occasionally want or need to use one of these:
 kbd:[Shift+F7] :: 'Soft reset'. Rescan section headers and open the navigation
   menu. Cursor position will be preserved.
 
-kbd:[Ctrl+Shift+F7] :: 'Hard reset'. Rescan section headers, reset the
+kbd:[Ctrl+Shift+F7] :: 'Hard reset'. Rescan doc and section headers, reset the
   cursor to the first line of the document and open the navigation menu.
 
 === Numerical Selection in the Popup
@@ -301,6 +302,9 @@ it would be cool to allow navigation of them. Their sections would be
 integrated in the navigation menu. Upon selection of a section the appropriate file
 would be loaded, perhaps in a new window, and focus/cursor shifted to the selected
 section header within.
+
+(Regarding preference for Atx-style headers over Setext-style see
+http://asciidoctor.org/docs/asciidoc-recommended-practices/ for more info.)
 
 == Plans
 

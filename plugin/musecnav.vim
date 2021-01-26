@@ -21,6 +21,9 @@ scriptencoding utf-8
 " miracles!)
 let g:musecnav_parse_lenient = 0
 
+" When enabled, only '=' is allowed for designating AsciiDoc section headers.
+let g:musecnav_strict_headers = 1
+
 " In-menu indication of cursor position 
 let g:musecnav_place_mark = '▶'
 
