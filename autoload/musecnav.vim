@@ -13,7 +13,7 @@ set cpoptions&vim
 
 scriptencoding utf-8
 
-let g:musecnav_version = 106
+let g:musecnav_version = 107
 let g:musecnav_home = expand('<sfile>:p:h:h')
 " TODO: what is the actual min version for non-popup use?
 let g:musecnav_required_vim_version = '800'
@@ -203,8 +203,9 @@ func! s:InitSectionTree(...) abort
 
     call setpos('.', [0, l:lineno, 1])
     let b:musecnav_data.level_map = {}
+    let b:musecnav_data.ancestor_map = {}
 
-    let b:musecnav_data.sections = s:WalkSections(b:musecnav_firstseclevel)
+    let b:musecnav_data.sections = s:WalkSections(b:musecnav_firstseclevel, "")
     let b:musecnav_data.currparent = []
     let b:musecnav_data.filename = expand('%')
 
@@ -299,6 +300,7 @@ func! s:NextSection_Markdown(bkwd) abort
     if a:bkwd
         let l:flags .= 'b'
     endif
+
     " Apparently some implementations don't require a space between the
     " '#'s and the title text. We're not allowing that at this time.
     " Save this pattern in the event we support multi-line headers
@@ -407,7 +409,7 @@ endfunc
 "   Header at level n found => sibling
 "     append to LL a data structure similar to:
 "     [lineno, {treekey:line, line:[], subtree: func}]
-"     Also, call UpdateLevelMap(a:level, header)
+"     Also, update level and ancestor maps
 "   Header at level n+1 found => child
 "     move cursor up 1 or 2, recurse this func with n+1 and add returned
 "     descendant hierarchy to subtree of last added LL elem
@@ -418,7 +420,9 @@ endfunc
 "   None of the above => error
 "     found level is deeper than 1 level down
 "                                                                          }}}
-func! s:WalkSections(level) abort
+" Param 1: level number of the topmost section header
+" Param 2: parent ID (name) or empty string if level is topmost
+func! s:WalkSections(level, parent) abort
 "    call Dfunc("WalkSections(".a:level.")")
     let l:levellist = []
 
@@ -445,6 +449,7 @@ func! s:WalkSections(level) abort
             let l:map = {'treekey': l:line, l:line: [], 'subtree': function("s:SubTree")}
             call add(l:levellist, [ l:matchline, l:map ])
             call s:UpdateLevelMap(b:musecnav_data.level_map, a:level, [l:matchline, l:map.treekey])
+            call s:UpdateAncestorMap(b:musecnav_data.ancestor_map, l:matchline, [l:line, a:parent])
         elseif l:matchlevel < a:level
 "            call Decho("LVL".a:level.": match type ** ANCESTOR **")
             call s:CurrLineInFwdSearch()
@@ -454,7 +459,7 @@ func! s:WalkSections(level) abort
         elseif l:matchlevel == a:level + 1
 "            call Decho("LVL".a:level.": match type ** CHILD **")
             call s:CurrLineInFwdSearch()
-            let l:descendants = s:WalkSections(a:level + 1)
+            let l:descendants = s:WalkSections(a:level + 1, l:levellist[-1][0])
             call l:levellist[-1][1].subtree(l:descendants)
         else
             if g:musecnav_parse_lenient
@@ -474,6 +479,35 @@ func! s:WalkSections(level) abort
 "    call Dret("WalkSections - returning levellist from LVL".a:level.")")
     return l:levellist
 endfunc
+
+" Function s:GetSectionAncestry {{{3
+
+"                                                      GetSectionAncestry {{{4
+" Build a list of section headers in hierarchical order starting at the top
+" section (root) and ending at the section whose start is at the line
+" specified in param 1. In other words a complete ancestry for the given
+" section.
+"
+" Param 1: line number of a section header
+" Param 2: a recursively traversable ancestor map (dictionary with line number
+"          keys and list values: [section header, section parent line num]
+" Returns list of lists. Inner list form: [section start line, section header]
+"                                                                          }}}
+function! s:GetSectionAncestry(line, map)
+    let l:res = []
+    let l:key = a:line
+    while a:map->has_key(l:key)
+        let l:val = a:map[l:key]
+        call add(l:res, [l:key, l:val[0]])
+        let l:key = l:val[1]
+    endwhile
+
+    if l:res->empty()
+        return l:res
+    endif
+
+    return l:res->reverse()
+endfunction
 
 " Function s:DrawMenu {{{3
 
@@ -498,18 +532,20 @@ endfunc
 " When a section header deeper than level 1 is selected we show
 "
 "    Document root (level 0)
-"      Selection parent (at level N-1)
-"        All of the selection parent's children (level N)
-"          Selected section's subtree (level N+1 and down)
+"      Ancestors between root and selection parent (levels 1 to N-2)
+"        Selection parent (at level N-1)
+"          All of the selection parent's children (level N)
+"            Selected section's subtree (level N+1 and down)
 "                                                                          }}}
 func! s:DrawMenu() abort
 "    call Dfunc("DrawMenu()")
 
     let l:menudata = s:MenuizeTree(b:musecnav_data.level, b:musecnav_data.selheadline, b:musecnav_data.sections)
 "    call Decho("Generated menu data: ".string(l:menudata))
+    let l:currlevel = b:musecnav_data.level
+    let l:idx = 0
 
     " build and display the menu
-    let l:idx = 0
     let l:rownum = 1
     let l:displaymenu = []
     let l:hirownum = 0
@@ -517,20 +553,20 @@ func! s:DrawMenu() abort
     if !b:musecnav_use_popup
         echom '--------'
     endif
-    while l:idx < len(l:menudata)-1
+
+    while l:idx < len(l:menudata) - 1
         let l:rowitem = l:menudata[l:idx+1]
 "        call Decho("  process rowitem: " . l:rowitem)
         if l:rownum == 1 && &ft ==? 'asciidoc'
             let l:rowitem = substitute(l:rowitem, 'ROOT', ' Top of ' . b:musecnav_docname . ' (root)', '')
         endif
 
+        let l:pad = '   '
         if b:musecnav_data.selheadline == l:menudata[l:idx]
-            let l:rowitem = substitute(l:rowitem, '\([#=]\)\{2} ', g:musecnav_place_mark . ' ', '')
+            let l:pad = ' ' . g:musecnav_place_mark . ' '
             let l:hirownum = l:rownum
-        else
-            let l:rowitem = substitute(l:rowitem, '\([#=]\)\{2} ', '  ', '')
         endif
-
+        let l:rowitem = substitute(l:rowitem, '\([#=]\)\{2} ', l:pad, '')
 
         let l:rowitem = substitute(l:rowitem, '[#=]', '  ', 'g')
         let l:rowtext = printf("%2s", l:rownum) . ": " . l:rowitem
@@ -604,7 +640,7 @@ func! s:ProcessSelection(id, choice) abort
 "    call Decho("Menu choice (".(l:dataidx+1)."): ".l:chosenitem)
 
     let b:musecnav_data.selheadline = l:chosendata
-    let b:musecnav_data.level = max([0, stridx(l:chosenitem, " ") - 1])
+    let b:musecnav_data.level = max([0, stridx(l:chosenitem, " ") - b:leveladj])
 
 "    call Decho("Navigate to line ".b:musecnav_data.selheadline." (level ".b:musecnav_data.level.")")
     exe b:musecnav_data.selheadline
@@ -624,21 +660,25 @@ endfunc
 " recursive descents). 'Tis not ideal. We're talking small trees here and it's
 " perfectly performant on my machine but could be an issue on lesser machines.
 " Investigate if this is ever shared.
+"
+" Param 1: current level
+" Param 2: number of first line of section that contains cursor
+" Param 3: section/sub-section data to be menuized
 "                                                                          }}}
-func! s:MenuizeTree(level, line, tree) abort
-"    call Dfunc("MenuizeTree(lvl: ".a:level.", line: ".a:line.", tree: ".string(a:tree).")")
+func! s:MenuizeTree(level, secline, tree) abort
+"    call Dfunc("MenuizeTree(lvl: ".a:level.", line: ".a:secline.", tree: ".string(a:tree).")")
 
     let b:musecnav_data.currparent = []
     if a:level > 0
-        let l:subtree = s:DescendToLine(a:line, a:tree, [0, "ROOT"])
+        let l:subtree = s:DescendToLine(a:secline, a:tree, [0, "ROOT"])
     else
         let l:subtree = a:tree
     endif
 
     let l:sibrangestart = 1
     let l:sibrangeend = line('$')
-    if &ft ==? 'asciidoc'
-        " Top of document (ROOT) always first menu item
+    if &ft ==? 'asciidoc' && b:musecnav_hasdocheader
+        " If there's a document header it'll be first menu item (ROOT)
         let l:levellist = [0, "ROOT"]
     else
         let l:levellist = []
@@ -646,9 +686,13 @@ func! s:MenuizeTree(level, line, tree) abort
 
     if !empty(b:musecnav_data.currparent)
 "        call Decho("Process parent ".string(b:musecnav_data.currparent))
-        " Skip ROOT as we already added it
+        " Insert parent and all its ancestors except ROOT (already in list)
         if b:musecnav_data.currparent[0] != 0
-            call extend(l:levellist, b:musecnav_data.currparent)
+            " Build ancestor list of current header and join with menudata
+            let l:ancestors = s:GetSectionAncestry(b:musecnav_data.currparent[0], b:musecnav_data.ancestor_map)
+            for ancestor in l:ancestors
+                call extend(l:levellist, ancestor)
+            endfor
         endif
 
         " beyond first level we need the parent's range of lines to
@@ -810,6 +854,7 @@ endf
 " K->V where K is level number, V is list of [lineno, { lineno->hierarchy }]
 " Currently used while collecting data needed to construct menu. Ie. to get a
 " section's siblings or siblings of a section parent.
+"
 func! s:UpdateLevelMap(map, key, value)
 "    call Dfunc("UpdateLevelMap(key: ".a:key.", val: ".string(a:value).", map: ".string(a:map).")")
     if ! has_key(a:map, a:key)
@@ -817,6 +862,24 @@ func! s:UpdateLevelMap(map, key, value)
     endif
     call add(a:map[a:key], a:value)
 "    call Dret("UpdateLevelMap - new map: ".string(a:map))
+endfunc
+
+" Function s:UpdateAncestorMap {{{3
+
+" The level map is for looking up all the parent of any given section. By
+" recursively looking up parents we can determine all ancestors of a section.
+" K->V, K is section ID and V is list of [section name, section parent ID]
+"
+" Param 1: the ancestor map
+" Param 2: section line number
+" Param 3: list containing parent line number and section name
+func! s:UpdateAncestorMap(map, key, value)
+"    call Dfunc("UpdateAncestorMap(key: ".a:key.", val: ".string(a:value).", map: ".string(a:map).")")
+    if has_key(a:map, a:key)
+        throw "Encountered a section (" . a:key . ") level a second time"
+    endif
+    let a:map[a:key] = a:value
+"    call Dret("UpdateAncestorMap - new map: ".string(a:map))
 endfunc
 
 " Function s:DebugLog {{{3
@@ -935,7 +998,9 @@ func! musecnav#navigate(...)
             return
         endif
 
+        let b:leveladj = 0
         if &ft ==? 'asciidoc'
+            let b:leveladj = 1
             "TODO
             "let s:asciidoc_header_mark_patts = ('[=#]', '=')
             if g:musecnav_strict_headers
@@ -1116,8 +1181,8 @@ endfunc
 " Level 2 Subsection Title
 " ~~~~~~~~~~~~~~~~~~~~~~~~
 "
-" Note: Asciidoctor doesn't allow two line headers and neither does musecnav,
-" at least for the time being.
+" Note: The Asciidoctor implementation of Asciidoc doesn't allow two line
+" headers and neither does musecnav, at least for the time being.
 "
 " Return value of this function is an array containing information about the
 " first header seen. It will look like this:
@@ -1282,6 +1347,7 @@ func! musecnav#InfoDump()
         echo printf("Last Menu: %s\n\n", b:musecnav_data.last_menu_text)
     endif
     echo printf("Level Map: %s\n\n", b:musecnav_data.level_map)
+    echo printf("Ancestor Map: %s\n\n", b:musecnav_data.ancestor_map)
 
     let l:vars = ['b:musecnav_data.level', 'b:musecnav_data.selheadline', 'b:musecnav_data.currparent']
     for l:var in l:vars

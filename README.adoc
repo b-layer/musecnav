@@ -19,7 +19,12 @@ ifdef::env-github[]
 toc::[]
 endif::[]
 
-Vim plugin for **M**ark**U**p **SEC**tion **NAV**igation
+Vim plugin for **M**ark**U**p **SEC**tion **NAV**igation 
+
+For the time being, though, a more accurate name would be _adsecnav_ for
+**A**scii**D**oc **SEC**tion **NAV**igation because I've put all my energy into
+making it work for Asciidoc/Asciidoctor. Proper Markdown support will be there
+eventually.
 
 == Disclaimer
 
@@ -77,8 +82,8 @@ hierarchy and the current cursor position (see <<reset, Hot Keys - Reset>>). As 
 result, it can be used just to 'get your bearings' in a large document.
 
 The sections visible at any particular time in the menu depend on what has been
-selected by the user prior. If user hasn't selected anything since start/reset you'll
-see:
+selected by the user prior. If user hasn't selected anything since start/reset and/or
+the cursor is at the beginning of the document you'll see:
 
    Document root (level 0)
      All level 1 section headers
@@ -87,17 +92,17 @@ When a (level 1) section is chosen you'll see:
 
    Document root (level 0)
      All level 1 section headers
-       Selected section's subtree
+       Selected section's entire subtree
 
 When a section header deeper than level 1 is selected it'll be:
 
    Document root (level 0)
-     Selection parent (at level N-1)
-       All of the selection parent's children (level N)
-         Selected section's subtree (level N+1 and down)
+     Selection ancestors (level 1 to N-1)
+       All children of the selection's parent children (level N)
+         Selected section's entire subtree (level N+1 on down)
 
-I suspect if there's anything for which people would have a lot of differing ideas
-about what is the "right" way, it's going to be related to this.
+In all cases the full ancestral line from current section to root of the document
+should be visible.
 
 === Hot Keys
 
@@ -238,6 +243,9 @@ don't feel much urgency. I'd be interested in hearing from anyone having a
 significantly more negative go of it.
 
 == Known Issues
+
+WARNING: Markdown is currently pretty broken as I've been refining the Asciidoc
+support but I do plan on getting Markdown working well eventually.
 
 TIP: Use the primary header formats for Asciidoc and Markdown: single-line, starting
 with one or more `=` (Asciidoc) or `#` (Markdown). I may improve handling of the
