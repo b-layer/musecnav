@@ -13,10 +13,9 @@ set cpoptions&vim
 
 scriptencoding utf-8
 
-let g:musecnav_version = 107
-let g:musecnav_home = expand('<sfile>:p:h:h')
+let g:musecnav_version = 108
 " TODO: what is the actual min version for non-popup use?
-let g:musecnav_required_vim_version = '800'
+let g:musecnav_required_vim_version = '802'
 
 if v:version < g:musecnav_required_vim_version
   echoerr printf('musecnav requires Vim %s+', g:musecnav_required_vim_version)
@@ -108,28 +107,28 @@ func! s:Navigate() abort
 "    call Decho("last line: ".b:musecnav_data.selheadline ." curr line: ".l:currline)
 
     if b:musecnav_data.selheadline != l:currline
-            " Search b/w for a section header. First found is current section.
-            " First move cursor down a line to more easily handle the corner
-            " case of cursor on first section and very close to doc root.
-            "+
-            " \%^ = start of file
-            call s:CurrLineInBkwdSearch()
-            let [l:headerline, _, l:level, _] = s:FindNextSection(1, 1)
+        " Search b/w for a section header. First found is current section.
+        " First move cursor down a line to more easily handle the corner
+        " case of cursor on first section and very close to doc root.
+        "+
+        " \%^ = start of file
+        call s:CurrLineInBkwdSearch()
+        let [l:headerline, _, l:level, _] = s:FindNextSection(1, 1)
 
-            if l:headerline == 0
-"                call Dret("Navigate - fatal MU20")
-                throw "MU20: No section header found above cursor line"
-            elseif l:headerline > l:currline
-"                call Dret("Navigate - fatal MU21")
-                throw "MU21: Backwards search ended up below cursor line!"
-            endif
+        if l:headerline == 0
+"            call Dret("Navigate - fatal MU20")
+            throw "MU20: No section header found above cursor line"
+        elseif l:headerline > l:currline
+"            call Dret("Navigate - fatal MU21")
+            throw "MU21: Backwards search ended up below cursor line!"
+        endif
 
-            let b:musecnav_data.level = l:level
-"            call Decho("Cursor moved to level ".b:musecnav_data.level." section starting on line ".l:headerline)
-            let b:musecnav_data.selheadline = l:headerline
+        let b:musecnav_data.level = l:level
+"        call Decho("Cursor moved to level ".b:musecnav_data.level." section starting on line ".l:headerline)
+        let b:musecnav_data.selheadline = l:headerline
 
-            " move cursor back to starting point (mark ' set by search())
-            call cursor(getpos("''")[1:])  " | -
+        " move cursor back to starting point (mark ' set by search())
+        call cursor(getpos("''")[1:])  " | -
     endif
 
     " For non-popup menu a continuous draw-menu/get-input/process-input cycle
@@ -591,6 +590,10 @@ func! s:DrawMenu() abort
     elseif b:musecnav_use_popup
         let popid = popup_menu(l:displaymenu, #{
                     \ title: l:title,
+                    \ resize: 1,
+                    \ close: 'button',
+                    \ maxheight: 60,
+                    \ scrollbar: 1,
                     \ highlight: 'Popup',
                     \ padding: [1,2,1,2],
                     \ filter: 'musecnav#MenuFilter',
@@ -765,7 +768,7 @@ endfunc
 " Params:
 "   line   : target line that cause descent to end and this function to return
 "   tree   : section header tree or a subtree thereof
-"   parent : tree's parent represented as [linenum, treekey] 
+"   parent : tree's parent represented as [linenum, treekey]
 "            Example: [327, '=== Things to Do']
 "
 " Returns: the node with the line number we are targeting
