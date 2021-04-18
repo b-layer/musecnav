@@ -13,25 +13,58 @@ set cpoptions&vim
 
 scriptencoding utf-8
 
-" s:musecnav_init_global_vars {{{1
-function! s:musecnav_init_global_vars()
-    " When enabled, try to continue processing document in the face of certain
-    " non-conforming formats (ie. ignore offending lines). Otherwise, errors are
-    " thrown in those situations, aborting processing. (WIP - don't expect any
-    " miracles!)
-    if !exists('g:musecnav_parse_lenient')
-        let g:musecnav_parse_lenient = 0
-    endif
+" With this settings_and_defaults list of lists, the first element in each
+" sub-list will be used with 'g:musecnav_' and 'b:musecnav_' prepended and
+" we'll assign the global var to the buffer var if the former exists.
+" Otherwise we'll assign the default value found in the second element of the
+" same sub-list to the buffer variable.
+"
+" Some details about the settings...
+"
+" strict_headers : 
+"   When enabled only '=' is allowed for designating AsciiDoc section headers.
+"   (Normally, '#' is also allowed.)
+"
+" parse_lenient
+"   When enabled, try to continue processing document in the face of certain
+"   non-conforming formats (ie. ignore offending lines). Otherwise, errors are
+"   thrown, aborting processing. (WIP. Don't expect any miracles!)
+"
+" place_mark : 
+"   Character that designates the currently selected menu item.
+"
+" show_topsects_always : 
+"   If enabled all of the current section's sibling sections will be shown in
+"   the menu when it is opened. Otherwise, this only happens when the current
+"   section is a top-level section.
+"
+" use_popup : 
+"   If enabled Vim's popup window feature will be used for menus. Otherwise,
+"   you'll get a slide up 'shelf'.
+"
+let s:settings_and_defaults = [
+         \ ['parse_lenient', 0],
+         \ ['strict_headers', 1],
+         \ ['place_mark', '▶'],
+         \ ['show_topsects_always', 0],
+         \ ['use_popup', has('popupwin')]]
 
-    " When enabled, only '=' is allowed for designating AsciiDoc section headers.
-    if !exists('g:musecnav_strict_headers')
-        let g:musecnav_strict_headers = 1
-    endif
+" s:musecnav_init_settings {{{1
 
-    " In-menu indication of cursor position
-    if !exists('g:musecnav_place_mark')
-        let g:musecnav_place_mark = '▶'
-    endif
+function! s:musecnav_init_settings()
+    " My way of avoiding an explosion of global variables. With these you only
+    " need a global if you want to override the default value. Either way a
+    " buffer local is used in the actual code.
+    for l:entry in s:settings_and_defaults
+        if exists('g:musecnav_' . l:entry[0])
+            exe 'let b:musecnav_' . l:entry[0] '=' eval('g:musecnav_' . l:entry[0])
+        else
+            exe 'let b:musecnav_' . l:entry[0] '= "' . l:entry[1] . '"'
+        endif
+        "call Decho(printf("%s = %s", 'b:musecnav_' . l:entry[0], eval('b:musecnav_' . l:entry[0])))
+    endfor
+
+    " TODO: clean the rest of this up (use the preceding loop if possible)
 
     let g:musecnav_popup_title_idx = 1
     let g:musecnav_popup_titles = ['Markup Section Headers', 'Up/Down or 1-99 then <Enter>']
@@ -94,14 +127,17 @@ endfunction
 
 " musecnav_initialize and autocommand {{{1
 function! s:musecnav_initialize()
+    call s:musecnav_init_settings()
+
+    " The remainder is mappings and commands so only needs to be run once
     if exists('g:musecnav_initialized') && g:musecnav_initialized
         return
     endif
 
-    call s:musecnav_init_global_vars()
     call s:musecnav_create_mappings()
 
     if !exists(":Navigate")
+        " TODO: either document this or get rid of it
         command! -buffer -nargs=? -complete=function Navigate call musecnav#navigate(<f-args>)
     endif
 

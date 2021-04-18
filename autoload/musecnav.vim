@@ -13,14 +13,7 @@ set cpoptions&vim
 
 scriptencoding utf-8
 
-let g:musecnav_version = 108
-" TODO: what is the actual min version for non-popup use?
-let g:musecnav_required_vim_version = '802'
-
-if v:version < g:musecnav_required_vim_version
-  echoerr printf('musecnav requires Vim %s+', g:musecnav_required_vim_version)
-  finish
-endif
+let g:musecnav_version = 109
 
 " Functions {{{1
 
@@ -169,7 +162,7 @@ func! s:InitSectionTree(...) abort
     let l:rebuild = 0
     if exists('b:musecnav_data.buflines') && b:musecnav_data.buflines != l:lastlineno
         let l:rebuild = 1
-        "if index(split(g:musecnav_refresh_checks, ','), 'buflines') >= 0
+        "if index(split(b:musecnav_refresh_checks, ','), 'buflines') >= 0
         "    let l:rebuild = 1
         "    let b:musecnav_data.buflines = l:lastlineno
         "else
@@ -226,10 +219,11 @@ endfunc
 func! s:NextSection_Asciidoc(bkwd, withroot) abort
 "    call Dfunc("NextSect_Asciidoc(".a:bkwd.")")
 
-    let l:flags = 'Wcs'
+    let l:skipflags = 'W'
     if a:bkwd
-        let l:flags .= 'b'
+        let l:skipflags .= 'b'
     endif
+    let l:flags = l:skipflags . 'cs'
 
     let l:wildcard = '\+'
     if a:withroot
@@ -238,7 +232,7 @@ func! s:NextSection_Asciidoc(bkwd, withroot) abort
 
     " Allows illegal markers like ===# and ##= .. I can live with that '
     let l:markers = '\('.repeat('=', b:musecnav_firstseclevel).l:wildcard.'\|'.repeat('#', b:musecnav_firstseclevel).l:wildcard.'\)'
-    let l:patt = '^' . l:markers . '\zs' . b:adheadmark . '\s\+\S'
+    let l:patt = '^' . l:markers . '\zs' . s:adheadmark . '\s\+\S'
 "    call Decho("With first sec level " . b:musecnav_firstseclevel . " patt is " . l:patt)
 
     let l:matchline = search(l:patt, l:flags)
@@ -253,8 +247,7 @@ func! s:NextSection_Asciidoc(bkwd, withroot) abort
         let l:linem1 = l:matchline - 1
         if prevnonblank(l:linem1) == l:linem1 && getline(l:linem1) =~? '^\[discrete\]\s*$'
 "            call Decho("Match at lineno ".l:matchline." preceded by '[discrete]'...skip")
-            call setpos('.', [0, l:matchline + 1, 1])
-            let l:matchline = search(l:patt, 'Wc')
+            let l:matchline = search(l:patt, l:skipflags)
             continue
         endif
 
@@ -344,9 +337,12 @@ endfunc
 "                                                         FindNexSections {{{4
 " Starting at current cursor position find the next section header in
 " the document and move the cursor to its location. Returns a list containing
-" [matchline, matchcol, matchlevel, multi]. The last value, multi, is a
-" boolean indicating whether the matched section was of the two-line variety.
-" (Currently markdown only.) If no headers are found all values will be 0.
+"
+"   [matchline, matchcol, matchlevel, multi]
+"
+" The last value, multi, is a boolean indicating whether the matched section
+" was of the two-line variety.  (Currently markdown only.) If no headers are
+" found all values will be 0.
 "                                                                          }}}
 func! s:FindNextSection(...) abort
     let l:bkwd = 0
@@ -407,7 +403,7 @@ endfunc
 " Loop on search for header pattern :
 "   Header at level n found => sibling
 "     append to LL a data structure similar to:
-"     [lineno, {treekey:line, line:[], subtree: func}]
+"     [lineno, {sectname: line, subtree: []}]
 "     Also, update level and ancestor maps
 "   Header at level n+1 found => child
 "     move cursor up 1 or 2, recurse this func with n+1 and add returned
@@ -429,13 +425,18 @@ func! s:WalkSections(level, parent) abort
 "        call Decho("LVL".a:level." FINDNEXT: [lineno, col, level, multi] is [".l:matchline.", ".l:matchcol.", ".l:matchlevel.", ".l:multi."]")
 
     while l:matchline > 0
-        " Exclude ID element following section name if present
-        let l:line = substitute(getline(l:matchline),
-                    \ '\s*\[\[[^[\]]*\]\]\s\?$', '', '')
-
+        " Exclude ID/anchor element preceding or following section name if
+        " present. (These are strings enclosed in double square braces.)
+        " TODO: Move patterns to FindNextSec()? Or put in global var(s)?
+        let l:patt1 = '\v^\' . s:adheadmark . '+\s+\zs%(\[\[[^[\]]+]])?\ze\S+'
+        let l:patt2 = '\v\s*\[\[[^[\]]+]]\s?$'
+        let l:line = getline(l:matchline)
+            \ ->substitute(l:patt1, '', '')
+            \ ->substitute(l:patt2, '', '')
 "        call Decho("Matched line: " . l:line)
+
         if l:matchlevel != a:level && empty(l:levellist)
-            if g:musecnav_parse_lenient
+            if b:musecnav_parse_lenient
 "                call Decho("Skipping header with unexpected level ".l:matchlevel)
             else
 "                call Dret("WalkSections - error 91")
@@ -445,9 +446,9 @@ func! s:WalkSections(level, parent) abort
 
         if l:matchlevel == a:level
 "            call Decho("LVL".a:level.": match type ** SIBLING **")
-            let l:map = {'treekey': l:line, l:line: [], 'subtree': function("s:SubTree")}
+            let l:map = {'sectname': l:line, 'subtree': []}
             call add(l:levellist, [ l:matchline, l:map ])
-            call s:UpdateLevelMap(b:musecnav_data.level_map, a:level, [l:matchline, l:map.treekey])
+            call s:UpdateLevelMap(b:musecnav_data.level_map, a:level, [l:matchline, l:map.sectname])
             call s:UpdateAncestorMap(b:musecnav_data.ancestor_map, l:matchline, [l:line, a:parent])
         elseif l:matchlevel < a:level
 "            call Decho("LVL".a:level.": match type ** ANCESTOR **")
@@ -459,9 +460,9 @@ func! s:WalkSections(level, parent) abort
 "            call Decho("LVL".a:level.": match type ** CHILD **")
             call s:CurrLineInFwdSearch()
             let l:descendants = s:WalkSections(a:level + 1, l:levellist[-1][0])
-            call l:levellist[-1][1].subtree(l:descendants)
+            eval l:levellist[-1][1].subtree->extend(l:descendants)
         else
-            if g:musecnav_parse_lenient
+            if b:musecnav_parse_lenient
                 echohl WarningMsg | echo "Skipped unexpected level ".l:matchlevel | echohl None
             else
 "                call Dret("WalkSections - error 92")
@@ -526,15 +527,29 @@ endfunction
 "
 "    Document root (level 0)
 "      All level 1 section headers
-"        Selected section's subtree
+"        Headers for selected section's subtree
 "
-" When a section header deeper than level 1 is selected we show
+" When a section deeper than level 1 is selected what we show depends on
+" whether musecnav_show_topsects_always is enabled or not...
+"
+" If enabled (default) show headers for...
 "
 "    Document root (level 0)
-"      Ancestors between root and selection parent (levels 1 to N-2)
-"        Selection parent (at level N-1)
-"          All of the selection parent's children (level N)
+"      All level 1 sections preceding selection's level 1 ancestor
+"      Ancestor sections between root and selection parent (levels 1 to N-2)
+"        Selection's parent section (at level N-1)
+"          All of the selection parent's child sections (level N)
 "            Selected section's subtree (level N+1 and down)
+"      All level 1 section following selection's level 1 ancestor
+"
+" If disabled (user override) show headers for...
+"
+"    Document root (level 0)
+"      Ancestor sections between root and selection parent (levels 1 to N-2)
+"        Selection's parent section (at level N-1)
+"          All of the selection parent's child sections (level N)
+"            Selected section's subtree (level N+1 and down)
+"
 "                                                                          }}}
 func! s:DrawMenu() abort
 "    call Dfunc("DrawMenu()")
@@ -562,7 +577,7 @@ func! s:DrawMenu() abort
 
         let l:pad = '   '
         if b:musecnav_data.selheadline == l:menudata[l:idx]
-            let l:pad = ' ' . g:musecnav_place_mark . ' '
+            let l:pad = ' ' . b:musecnav_place_mark . ' '
             let l:hirownum = l:rownum
         endif
         let l:rowitem = substitute(l:rowitem, '\([#=]\)\{2} ', l:pad, '')
@@ -665,7 +680,7 @@ endfunc
 " Investigate if this is ever shared.
 "
 " Param 1: current level
-" Param 2: number of first line of section that contains cursor
+" Param 2: line number of section header for section containing cursor
 " Param 3: section/sub-section data to be menuized
 "                                                                          }}}
 func! s:MenuizeTree(level, secline, tree) abort
@@ -687,14 +702,30 @@ func! s:MenuizeTree(level, secline, tree) abort
         let l:levellist = []
     endif
 
+    if a:level > 1 && b:musecnav_show_topsects_always
+        " Add top-level sections from first to that which is the current
+        " section's ancestor.
+        for l:topsect in b:musecnav_data.level_map[1]
+"            Decho("l:topsect is " . string(l:topsect))
+            if l:topsect[0] >= a:secline
+                break
+            endif
+            eval l:levellist->extend(l:topsect)
+        endfor
+    endif
+
     if !empty(b:musecnav_data.currparent)
 "        call Decho("Process parent ".string(b:musecnav_data.currparent))
         " Insert parent and all its ancestors except ROOT (already in list)
         if b:musecnav_data.currparent[0] != 0
             " Build ancestor list of current header and join with menudata
             let l:ancestors = s:GetSectionAncestry(b:musecnav_data.currparent[0], b:musecnav_data.ancestor_map)
+            if b:musecnav_show_topsects_always
+                " Level 1 ancestor already displayed in previous block
+                let l:ancestors = l:ancestors[1:]
+            endif
             for ancestor in l:ancestors
-                call extend(l:levellist, ancestor)
+                eval l:levellist->extend(ancestor)
             endfor
         endif
 
@@ -742,14 +773,25 @@ func! s:MenuizeTree(level, secline, tree) abort
             break
         endif
 "        call Decho("Adding to menu lineno: ".l:siblineno)
-        call extend(l:levellist, l:sibling)
+        eval l:levellist->extend(l:sibling)
         if a:level > 0 && l:siblineno == l:targetline
-"            call Decho("Recurse and flatten selected subtree with ".len(l:subtree[1].subtree())." children")
-            let l:ret = s:FlattenSubTree(l:subtree[1].subtree(), 1, 9)
-            call extend(l:levellist, l:ret)
+"            call Decho("Recurse and flatten selected subtree with ".len(l:subtree[1].subtree)." children")
+            let l:ret = s:FlattenSubTree(l:subtree[1].subtree, 1, 9)
+            eval l:levellist->extend(l:ret)
             let l:recursed = 1
         endif
     endfor
+
+    if a:level > 1 && b:musecnav_show_topsects_always
+        " Add remaining top-level sections, i.e. those that follow the current
+        " section's top-level ancestor.
+        for l:topsect in b:musecnav_data.level_map[1]
+            if l:topsect[0] <= l:targetline
+                continue
+            endif
+            eval l:levellist->extend(l:topsect)
+        endfor
+    endif
 
 "    call Dret("MenuizeTree")
     return l:levellist
@@ -768,7 +810,7 @@ endfunc
 " Params:
 "   line   : target line that cause descent to end and this function to return
 "   tree   : section header tree or a subtree thereof
-"   parent : tree's parent represented as [linenum, treekey]
+"   parent : tree's parent represented as [linenum, sectname]
 "            Example: [327, '=== Things to Do']
 "
 " Returns: the node with the line number we are targeting
@@ -791,9 +833,9 @@ func! s:DescendToLine(line, tree, parent) abort
         " current and next elems. If so then we need to descend
         if l:sect[0] < a:line
             if l:curridx + 1 == l:levellen || a:line < a:tree[l:curridx+1][0]
-                let l:parent = [ l:sect[0], l:sect[1].treekey ]
+                let l:parent = [ l:sect[0], l:sect[1].sectname ]
 "                call Dret("DescendToLine - recursive descent")
-                return s:DescendToLine(a:line, l:sect[1].subtree(), l:parent)
+                return s:DescendToLine(a:line, l:sect[1].subtree, l:parent)
             endif
         endif
         let l:curridx += 1
@@ -819,13 +861,13 @@ func! s:FlattenSubTree(subtree, level, n) abort
     for l:sect in a:subtree
 "        call Decho("processing section ".string(l:sect))
         let l:currlineno = l:sect[0]
-        let l:treekey = l:sect[1].treekey
-"        call Decho("Elem lineno: ".l:currlineno.", sect: ".l:treekey)
-        call extend(l:accum, [l:currlineno, l:treekey])
-        let l:nested = l:sect[1].subtree()
+        let l:sectname = l:sect[1].sectname
+"        call Decho("Elem lineno: ".l:currlineno.", sect: ".l:sectname)
+        eval l:accum->extend([l:currlineno, l:sectname])
+        let l:nested = l:sect[1].subtree
         if ! empty(l:nested)
 "            call Decho("FlattenSubTree - Recurse on subtree with ".len(l:nested)." children")
-            call extend(l:accum, s:FlattenSubTree(l:nested, a:level+1, a:n))
+            eval l:accum->extend(s:FlattenSubTree(l:nested, a:level+1, a:n))
         endif
     endfor
 
@@ -833,23 +875,6 @@ func! s:FlattenSubTree(subtree, level, n) abort
 "    call Dret("FlattenSubTree")
     return l:accum
 endfunc
-
-" Function s:Subtree {{{3
-
-" Returns the embedded list whose key is the value stored in 'treekey'
-" If a param is given and it is a list it is first concatenated (extend()) to
-" the existing list. Non-lists are added (add()) to the list.
-func! s:SubTree(...) dict
-    if a:0 == 0
-        return self[self.treekey]
-    endif
-
-    if type(a:1) == v:t_list
-        return extend(self[self.treekey], a:1)
-    else
-        return add(self[self.treekey], a:1)
-    endif
-endf
 
 " Function s:UpdateLevelMap {{{3
 
@@ -966,8 +991,13 @@ endfunction
 
 " musecnav#navigate {{{3
 "                                                       musecnav#navigate {{{4
-" Global, error handling wrapper around primary, local function
 " Main entry point for normal plugin use. Primary hotkeys call this.
+"
+" Contains some setup and sanity checking before calling the local navigate
+" function. Known error types will bubble up to here and get caught and
+" properly messaged while anything else, unknown and therefore considered
+" critical, is allowed to escape.
+"
 " An optional first param can be supplied which will trigger a reset
 " based on the value. The allowed values and associated effects:
 "
@@ -1004,12 +1034,10 @@ func! musecnav#navigate(...)
         let b:leveladj = 0
         if &ft ==? 'asciidoc'
             let b:leveladj = 1
-            "TODO
-            "let s:asciidoc_header_mark_patts = ('[=#]', '=')
-            if g:musecnav_strict_headers
-                let b:adheadmark = '='
+            if b:musecnav_strict_headers
+                let s:adheadmark = '='
             else
-                let b:adheadmark = '[=#]'
+                let s:adheadmark = '[=#]'
             endif
         endif
 
@@ -1022,22 +1050,26 @@ func! musecnav#navigate(...)
 "            call Decho("Running in BATCH mode (no popups)")
             let b:musecnav_use_popup = 0
         endif
-        if !exists('b:musecnav_use_popup')
-            " FYI popups introduced in 8.1 patch 1517
-            let b:musecnav_use_popup = has('popupwin')
+
+        if b:musecnav_use_popup && !has('popupwin')
+"            call Dret("musecnav#navigate - Popups unsupported")
+            echohl WarningMsg
+            echo 'Vim 8.1.1517 or later required for the popup-style menu'
+            echohl None
+            return
         endif
 
         if l:force == 2
-            let b:musecnav_initialized = 0
+            let b:musecnav_hdrs_scanned = 0
         endif
 
-        if !exists('b:musecnav_initialized') || !b:musecnav_initialized
+        if !exists('b:musecnav_hdrs_scanned') || !b:musecnav_hdrs_scanned
             call s:InitHeaderInfo()
-            let b:musecnav_initialized = 1
+            let b:musecnav_hdrs_scanned = 1
         endif
 
         if l:force == 2
-            " Hard reset positions cursor at start/
+            " Hard reset positions cursor at start
             call setpos('.', [0, 1, 1])
         endif
 
@@ -1048,11 +1080,10 @@ func! musecnav#navigate(...)
         endif
 
         call s:Navigate()
+"        call Dret("musecnav#navigate")
     catch /^MU\d\+/
         echohl ErrorMsg
-        echom "Error occurred in MuSecNav:" v:exception
-        echohl ErrorMsg
-        echom "Location:" v:throwpoint
+        echom printf("Fatal error in MuSecNav: %s [%s]", v:exception, v:throwpoint)
         echohl None
     endtry
 endfunc
@@ -1294,9 +1325,9 @@ func! musecnav#FindFirstHeader()
         endif
     endwhile
 
-    if l:line =~ '^' . b:adheadmark . '\+\s\+\w'
+    if l:line =~ '^' . s:adheadmark . '\+\s\+\w'
         " title: single-line type
-        let l:level = match(l:line, '^' . b:adheadmark . '*\zs' . b:adheadmark . '\s\+\w')
+        let l:level = match(l:line, '^' . s:adheadmark . '*\zs' . s:adheadmark . '\s\+\w')
         return [l:lineno-1, l:level, 0, l:line[l:level+2:]]
     endif
 
@@ -1396,10 +1427,11 @@ endfunc
 
 " Other Functions {{{3
 
-" TODO: Used? If not delete it.
+" Currently only used by personal stuff (MSNReload)
 func! musecnav#DataReset()
     let b:musecnav_data = {}
-    let l:vars = ['b:musecnav_hasdocheader', 'b:musecnav_rootlevel', 'b:musecnav_docname', 'b:musecnav_docheader', 'b:musecnav_firstsecheader']
+    let b:musecnav_ = {}
+    let l:vars = ['b:musecnav_hasdocheader', 'b:musecnav_rootlevel', 'b:musecnav_docname', 'b:musecnav_docheader', 'b:musecnav_firstsecheader', 'b:musecnav_hdrs_scanned']
     for l:var in l:vars
         if exists(l:var)
             exe "unlet " . l:var
@@ -1412,10 +1444,13 @@ func! musecnav#InitHeaderInfo()
     return s:InitHeaderInfo()
 endfunc
 
-" Currently using this as a trigger to source this file. Called from autoload
-" file for musecnav when a markup file type is indicated.
-func! musecnav#activate()
-    return
+" FOR TESTING ONLY
+func! musecnav#SectionFind(likenav)
+    if a:likenav
+        echo printf("%s", join(s:FindNextSection(1, 1)))
+    else
+        echo printf("%s", join(s:FindNextSection()))
+    endif
 endfunc
 
 " Config Undo {{{1

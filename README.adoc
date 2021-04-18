@@ -26,38 +26,26 @@ For the time being, though, a more accurate name would be _adsecnav_ for
 making it work for Asciidoc/Asciidoctor. Proper Markdown support will be there
 eventually.
 
-== Disclaimer
-
-This plugin is a personal project that I made for my own education and use. A couple
-people expressed interest in it so I'm sharing it but with some mild warnings related
-to stability of the script, responsiveness to enhancement requests and non-critical
-bug reports, and things like that. Caveat emptor.
-
-That being said, what was first and foremost an educational project has turned into a
-super useful tool to me that I use all the time so why the heck not put it out there?
-
 == Overview
 
 _If you just want to jump in and go a quick read of <<hot-keys, Hot Keys>> should be
 all that you need after installation._
 
 I regularly edit text containing Asciidoc markup and thought it would convenient to
-be able to easily jump to any section in such documents. Since I'm a long-time coder 
-and Vim fan I thought rather than use something already available I'd make it an
-excuse to improve my Vim knowledge. Never written a Vim plugin before.
+be able to easily jump to any section in such documents. Though I've been coding
+forever and am a heavy user of Vim I hadn't yet written a Vim plugin of any
+significance so this seemed like a good opportunity to rectify that situtation.
 
-All this does, essentially, is open a menu when called in which all of the document's
-sections are available and which can be navigated as a hierarchy (as opposed to
-displaying all of them at once). Choose a section and you will be taken to its
-header.
+Basically, the plugin works like this: open the navigation popup, navigate through
+the section hierarchy until you get to the section you want and select it and the
+cursor will be moved to its header. The document's sections are laid out in a
+certain, opinionated way that works well for all sizes of documents. I plan on having
+some degree of tunability for this aspect eventually. (Currently there's is one
+customizable attribute: whether the top level section headers are always shown or if
+they're hidden once go deeper than level one.)
 
-Well, it's a bit more complicated than that. Funny how much nuance there is for
-something that sounds so simple on paper. I try to cover most of that below (though
-that's a WIP).
-
-Currently this is tested with Asciidoc and, lightly, with Markdown (see
-<<known-issues, Known Issues>>). The 'mu' in musecnav is for 'markup' so the
-idea is to support whatever formats are needed. There's a bit more information on
+I've tested with Asciidoc mostly. The 'mu' in musecnav is for 'markup', though, so
+the idea is to support whatever formats are needed. There's a bit more information on
 supporting additional formats in <<plans, Plans>>.
 
 == Installation
@@ -73,36 +61,17 @@ Plug 'b-layer/musecnav'
 
 Besides the obvious stuff mentioned above I note some less apparent details here.
 
-You can use either a slide-up (from the status line) menu or, with newer versions of
-Vim, a popup window. With a compatible version you'll get the popup by default.
-Otherwise you'll see the slide-up. To change this see <<settings, Settings>>.
+The navigation area will be shown in either a slide-up (from the status line) menu
+or, if you're using Vim 8.1.1517 or later, a popup window. To use the slide-up when
+the popup is the default see <<other-settings, Settings - Other>>.
 
 When the menu is displayed its state should always reflect the current section
 hierarchy and the current cursor position (see <<reset, Hot Keys - Reset>>). As a
 result, it can be used just to 'get your bearings' in a large document.
 
-The sections visible at any particular time in the menu depend on what has been
-selected by the user prior. If user hasn't selected anything since start/reset and/or
-the cursor is at the beginning of the document you'll see:
-
-   Document root (level 0)
-     All level 1 section headers
-
-When a (level 1) section is chosen you'll see:
-
-   Document root (level 0)
-     All level 1 section headers
-       Selected section's entire subtree
-
-When a section header deeper than level 1 is selected it'll be:
-
-   Document root (level 0)
-     Selection ancestors (level 1 to N-1)
-       All children of the selection's parent children (level N)
-         Selected section's entire subtree (level N+1 on down)
-
-In all cases the full ancestral line from current section to root of the document
-should be visible.
+The sections visible in the navigation menu at any particular time depend on where in
+the hierarchy you currently are and on how you've configured the plugin. Complete
+details can be found under <<section-layout, Settings - Section Layout>>.
 
 === Hot Keys
 
@@ -213,6 +182,52 @@ example, if you'd like to use kbd:[F3] to open the navigation window...
 
 This will also change the mappings for soft and hard resets, too, i.e. to
 kbd:[Shift+F3] and kbd:[Ctrl+F3], respectively.
+
+=== Section Layout
+
+As mentioned previously the way sections are arranged in the navigation menu depends
+on your current position in the section hierarchy. The displayed sections when at the
+top two levels are fixed as follows.
+
+When the currently selected section is...
+
+_...the document root:_
+
+   Document root (level 0)
+     All level 1 section headers
+
+_...a top-level section (level 1):_
+
+   Document root (level 0)
+     All level 1 section headers
+       Headers for selected section's subtree
+
+_...deeper than level 1:_
+
+This depends on the value of `musecnav_show_topsects_always`.
+
+If that setting is...
+
+_...enabled (the default):_
+
+   Document root (level 0)
+     All level 1 sections preceding selection's level 1 ancestor
+     Ancestor sections between root and selection parent (levels 1 to N-2)
+       Selection's parent section (at level N-1)
+         All of the selection parent's child sections (level N)
+           Selected section's subtree (level N+1 and down)
+     All level 1 section following selection's level 1 ancestor
+
+_...disabled:_
+
+   Document root (level 0)
+     Ancestor sections between root and selection parent (levels 1 to N-2)
+       Selection's parent section (at level N-1)
+         All of the selection parent's child sections (level N)
+           Selected section's subtree (level N+1 and down)
+
+Note that regardless of the setting or the level the full ancestral line from current
+section to root of the document should always be shown.
 
 === Popup Menu Colors
 
@@ -332,7 +347,8 @@ sniffing out the exceptions and handling them. For example, Asciidoc allows sect
 headers independent of the main hierarchy by preceding them with `[discrete]`. Code
 had to be added to ignore these.
 
-At a minimum, I want to fix all outstanding Asciidoc issues and those Markdown issues that are likely to be encountered relatively frequently.
+At a minimum, I want to fix all outstanding Asciidoc issues and those Markdown issues
+that are likely to be encountered relatively frequently.
 
 Further out, I've thought a bit about the possibility of extending this to work
 beyond markup section headers. Examples: functions/methods for this or that
