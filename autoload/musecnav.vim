@@ -13,7 +13,7 @@ set cpoptions&vim
 
 scriptencoding utf-8
 
-let g:musecnav_version = 109
+let g:musecnav_version = 110
 
 " Functions {{{1
 

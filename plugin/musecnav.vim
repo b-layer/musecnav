@@ -46,7 +46,7 @@ let s:settings_and_defaults = [
          \ ['parse_lenient', 0],
          \ ['strict_headers', 1],
          \ ['place_mark', '▶'],
-         \ ['show_topsects_always', 0],
+         \ ['show_topsects_always', 1],
          \ ['use_popup', has('popupwin')]]
 
 " s:musecnav_init_settings {{{1
