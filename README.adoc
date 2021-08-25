@@ -3,6 +3,10 @@
 :toclevels: 3
 :experimental:
 :icons: font
+// Stupid GitHub doing things their own stupid way. This is to match locally. (The
+// default is, of course, underscore for both.)
+:idprefix:
+:idseparator: -
 //:sectlinks:
 ifdef::env-github[]
 :tip-caption: :bulb:
@@ -13,159 +17,193 @@ ifdef::env-github[]
 endif::[]
 //:hide-uri-scheme:
 // :source-language: python
-
 ifdef::env-github[]
 :toc-placement!:
 toc::[]
 endif::[]
 
-Vim plugin for **M**ark**U**p **SEC**tion **NAV**igation 
+_Musecnav_ (**M**ark**U**p **SEC**tion **NAV**igation) is a Vim plugin that allows
+allows quick navigation of sections in <<section-headers, well-formed>> Asciidoc and
+Markdown documents.
 
-For the time being, though, a more accurate name would be _adsecnav_ for
-**A**scii**D**oc **SEC**tion **NAV**igation because I've put all my energy into
-making it work for Asciidoc/Asciidoctor. Proper Markdown support will be there
-eventually.
+image::screenshots/example1.png[example]
 
 == Overview
 
-_If you just want to jump in and go a quick read of <<hot-keys, Hot Keys>> should be
-all that you need after installation._
+TIP: If you just want to jump in and go a quick read of <<hot-keys, Hot Keys>> should be
+all that you need after installation.
 
-I regularly edit text containing Asciidoc markup and thought it would convenient to
-be able to easily jump to any section in such documents. Though I've been coding
-forever and am a heavy user of Vim I hadn't yet written a Vim plugin of any
-significance so this seemed like a good opportunity to rectify that situtation.
+I regularly edit files containing text formatted with Asciidoc markup. In large files
+especially, moving from section to section is quite a pain so I decided to try my
+hand at Vim plugin development and create a section navigation menu. I created it for
+my own benefit originally but it's been so useful to me that it seemed like a good
+idea to share it. And though I use Markdown far less frequently, it is obviously very
+popular so I decided to add support for that, too.
 
-Basically, the plugin works like this: open the navigation popup, navigate through
-the section hierarchy until you get to the section you want and select it and the
-cursor will be moved to its header. The document's sections are laid out in a
-certain, opinionated way that works well for all sizes of documents. I plan on having
-some degree of tunability for this aspect eventually. (Currently there's is one
-customizable attribute: whether the top level section headers are always shown or if
-they're hidden once go deeper than level one.)
+Basically, the plugin works like this: open the navigation menu, navigate through the
+section hierarchy until you get to the section you want. When the menu is closed the
+cursor will be positioned at that section's header. 
 
-I've tested with Asciidoc mostly. The 'mu' in musecnav is for 'markup', though, so
-the idea is to support whatever formats are needed. There's a bit more information on
-supporting additional formats in <<plans, Plans>>.
+The menu is updated, as necessary, each time it's opened so it accurately reflects
+the document's section hierarchy and the current cursor position. There are several
+layout schemes available (e.g. you can configure the plugin to always show the
+hierarchy fully expanded or to only expand the subtree within which the cursor lies)
+with additional schemes planned. There are a few other ways to customize the menu,
+too, as described in <<settings>>.
 
 == Installation
 
-Standard stuff if you use a plugin manager that plays nice with GitHub, e.g.
+Standard stuff here. If you use a plugin manager that plays nice with GitHub you
+probably know what to do. Using vim-plug as an example...
 
 .vim-plug configuration
 ----
 Plug 'b-layer/musecnav'
 ----
 
-== Feature Details
+If you use Vim packages use git from the command line as follows.
 
-Besides the obvious stuff mentioned above I note some less apparent details here.
+.Vim package cloning (Unix/Linux)
+----
+git clone https://github.com/b-layer/musecnav.git ~/.vim/pack/{packdir}/start/musecnav
+----
 
-The navigation area will be shown in either a slide-up (from the status line) menu
-or, if you're using Vim 8.1.1517 or later, a popup window. To use the slide-up when
-the popup is the default see <<other-settings, Settings - Other>>.
+Replace `{packdir}` with whatever directory name you prefer.
 
-When the menu is displayed its state should always reflect the current section
-hierarchy and the current cursor position (see <<reset, Hot Keys - Reset>>). As a
-result, it can be used just to 'get your bearings' in a large document.
+(On Windows you'll likely be using `%USERPROFILE%/vimfiles` in place of `~/.vim`.)
 
-The sections visible in the navigation menu at any particular time depend on where in
-the hierarchy you currently are and on how you've configured the plugin. Complete
-details can be found under <<section-layout, Settings - Section Layout>>.
+== Hot Keys
 
-=== Hot Keys
+=== Default Key Map
 
-By default no keys are mapped. To enable the hotkeys described below add the
-following to your vimrc:
+By default no keys are mapped. To enable the hotkey assignments described below add
+the following to your vimrc file:
 
     let g:musecnav_use_default_keymap = 1
 
 Otherwise see <<key-mappings, Key Mappings>> for help with defining your
 own hotkeys.
 
-kbd:[F7] :: Open the navigation menu (popup or message based depending on config).
+WARNING: Since we don't want to override any of your existing key mappings you need
+to explicitly configure this plugin's hot keys. If the default key assignments don't
+conflict with your setup then all you need to do is to add the above line and you're
+ready to start using _musecnav_.
 
-==== Popup Menu
+=== Opening the Menu
 
-kbd:[J]/kbd:[K] or kbd:[Down]/kbd:[Up] :: Select row below/above the currently selected row.
-kbd:[Shif+J]/kbd:[Shif+K] :: Select last/first row.
-Numbers 1-99 :: Jump to a row by number (see next section).
-kbd:[Enter] :: Go to section matching selected row. Menu remains open. If you
-hit kbd:[Enter] again immediately (without choosing another row) the menu will close.
-kbd:[Esc] / kbd:[Ctrl+C] / kbd:[X] :: Other ways to close the menu (at any time).
+kbd:[F7] :: Open the navigation menu.
 
-==== Slide-up Menu
+=== Menu Navigation
 
-Numbers 1-99 :: Rows are chosen by entering their associated number followed by Enter.
-kbd:[Esc] / kbd:[Ctrl+C] or kbd:[Enter] by itself :: Close the menu.
+If you're version of Vim supports popups (i.e. version 8.1.1517 or later) the menu
+will appear in a popup window. Otherwise it will appear as a "drawer" that slides up
+from the bottom of the window. Note that navigation in the slide-up menu is somewhat
+limited compared to the popup.
 
+==== Popup
 
-==== Reset
+kbd:[J]/kbd:[K] or kbd:[Down]/kbd:[Up] :: Select row below/above the currently
+selected row.
 
-`musecnav` monitors the current buffer and if it detects a change that could impact
-the line numbers of any sections in the saved hierarchy it will rescan the file and
-rebuild the hierarchy the next time the menu is opened. Nonetheless, you may
-occasionally want or need to use one of these:
+kbd:[Shif+J]/kbd:[Shif+K] :: Select last/first row. 
 
-kbd:[Shift+F7] :: 'Soft reset'. Rescan section headers and open the navigation
-  menu. Cursor position will be preserved.
+Numbers 1-99 :: Select row corresponding to the entered number(s) (see the sidebar).
 
-kbd:[Ctrl+F7] :: 'Hard reset'. Rescan doc and section headers, reset the cursor to
-                 the first line of the document and open the navigation menu.
+kbd:[Enter] :: Move the cursor to the section header matching the selected row. The
+               popup will remain open. If you hit kbd:[Enter] a second time within
+               a couple second the popup will be closed.
 
-=== Numerical Selection in the Popup
+kbd:[Esc], kbd:[Ctrl+C] or kbd:[X] :: Close the navigation menu popup.
 
-A nice feature is being able to choose sections by entering the associated number.
-(By default Vim popups don't support this which means you might have 50 sections on
-screen but no way to navigate them except up or down, one line at a time!) That
-being said, the way I implemented things _might_ seem a little peculiar. So I spell
-out the algorithm here.
+.Numerical Selection in the Popup
+****
+A nice feature is being able to choose sections by entering their associated number.
+(By default Vim menu popups don't support this which means you might have 50 sections
+on screen but no way to navigate them except up or down, one line at a time!) That
+being said, the way things are implemented _might_ seem a little peculiar so the
+algorithm is detailed here...
 
-There is a 1-digit 'buffer' that is empty when menu is opened.
+There is a 1-digit "buffer" that is empty when the menu is opened.
 
 * User enters a number when buffer is empty...
-** ...if number matches a single row, and is not the first digit of any other row numbers select the matching row (buffer remains empty)
-** ...if number could match multiple rows, select first of potential matches and
-   buffer the number
+** ...if number matches a single row and is not the first digit of any other row
+   numbers then select the matching row (the buffer remains empty).
+** ...if number could match multiple rows select the first of the potential matches
+   and store the number in the buffer.
 * User enters a number when buffer is not empty...
 ** ...if combined number (previous is most significant digit, new is least
    significat) matches a single row, select that row and clear buffer.
 ** ...if combined number doesn't match a row, discard new number (previous number
    remains in buffer)
 
-Example: 32 rows. User enters 3. Select line 3 and buffer num (in case they intend to
-go to 30, 31 or 32). User then enters 5. No
-row 35 so discard 5 (leaving 3 in buffer and row 3 selected) User enters 1. Select
-row 31 and clear buffer. User enters 9. Select row 9 but don't buffer num (no rows
-90-99). User
-enters 2. Select row 2 and buffer num. Etc. When user finally accepts selection with
-Enter buffer is always cleared.
+Example: 32 rows. User enters 3. Select line 3 and store num in buffer (in case they
+intend to go to 30, 31 or 32). User then enters 5. No row 35 so discard 5 (leaving 3
+in buffer and row 3 selected) User enters 1. Select row 31 and clear buffer. User
+enters 9. Select row 9 but don't buffer num (since no other row nums start with 9).
+User enters 2. Select row 2 and buffer num. Etc. When user finally accepts selection
+with Enter buffer is always cleared.
 
 If you get confused hit Enter and retype desired number. (Though, really, it's not
 THAT confusing.;) 
 
-CAUTION: This only works for 2-digit numbers so if you have 100 or more sections
-visible in the menu _at one time_ (!) the behavior is undefined. (The most I've seen
-at once, and I regularly navigate a 250-section bad boy, is about 80.)
+CAUTION: This currently only works for 2-digit numbers so if you have 100 or more
+sections visible in the menu at one time the behavior is undefined. If you are
+impacted by this please report it.
+
+****
+
+==== Slide-Up Drawer
+
+Numbers 1-99 :: Rows are chosen by entering their associated number followed by Enter.
+kbd:[Esc] / kbd:[Ctrl+C] or kbd:[Enter] by itself :: Close the menu.
+
+
+=== Reset
+
+_musecnav_ monitors the current buffer and if it detects a change that could impact
+the location of any sections in the saved hierarchy it will rescan the file and show
+the updated hierarchy the next time the menu is opened. Nonetheless, you may
+occasionally want or need to use one of these:
+
+kbd:[Shift+F7] :: "Soft" reset. Rescan section headers and open the navigation
+  menu. Cursor position will be preserved.
+
+kbd:[Ctrl+F7] :: "Hard" reset. Rescan doc and section headers, reset the cursor to
+                 the first line of the document and open the navigation menu.
 
 == Settings
+
+Unless otherwise noted, settings based on Vim variables can be configured either
+as buffer-local or global. The differences are described below.
+
+.Buffer-local variables...
+* Have prefix `b:`.
+* Are usually set on the command line of an open buffer.
+* Affect _musecnav_ only in the buffer in which they are set.
+* Take effect the next time the navigation menu is opened.
+* Example: `let b:musecnav_display_mode = 'all'`
+
+.Global variables...
+* Have prefix `g:`.
+* Are usually added to your vimrc file.
+* Affect only buffers that are opened after the setting is added to your vimrc.
+* Example: `let g:musecnav_display_mode = 'all'`
 
 === Key Mappings
 
 As mentioned in the <<hot-keys, Hot Keys>> section you can enable default key
-mappings with:
+mappings by adding the following to your vimrc file:
 
     let g:musecnav_use_default_keymap = 1
 
 If you'd prefer to define your own mappings it works like most plugins out there:
 find the applicable `<Plug>` mappings and map the desired key(s) to the ones of
-interest. You can find the `<Plug>` mappings for musecnav with this:
+interest. You can find the `<Plug>` mappings for _musecnav_ with this:
 
     filter /musecnav/ map
 
 The most important one is that which launches the navigation menu/popup.
-Specifically, `<Plug>MusecnavNavigate`. Using the default keys as an example a
-mapping to that would look like this:
+Specifically, `<Plug>MusecnavNavigate`. A valid mapping to that would look like this:
 
         nmap <F7> <Plug>MusecnavNavigate
 
@@ -173,25 +211,44 @@ The only other `<Plug>` mappings you might want to consider configuring are
 `<Plug>MusecnavReset` and `<Plug>MusecnavReinit`. Their functionality is described
 here: <<reset, Hot Keys - Reset>>.
 
-If the only change you want to make to the default mappings is to use a different
-function key then all you need to do after enabling `g:musecnav_use_default_keymap`
-as described above is to specify which function key in `g:musecnav_alt_fun_key`. For
-example, if you'd like to use kbd:[F3] to open the navigation window...
+==== Swapping Function Keys
+
+If you'd like to continue using a function key for the menu launch and reset
+functions but prefer one other than kbd:[F7] then all you need to do other than
+enabling `g:musecnav_use_default_keymap` is to specify which function key in
+`g:musecnav_alt_fun_key`. For example, if you'd like to use kbd:[F3] to open the
+navigation window add this to your vimrc file:
 
     let g:musecnav_alt_fun_key = 'F3'
 
 This will also change the mappings for soft and hard resets, too, i.e. to
 kbd:[Shift+F3] and kbd:[Ctrl+F3], respectively.
 
-=== Section Layout
+=== Section Display Modes
 
-As mentioned previously the way sections are arranged in the navigation menu depends
-on your current position in the section hierarchy. The displayed sections when at the
-top two levels are fixed as follows.
+The way section headers are displayed in the navigation menu is configurable.
+Specifically, there are rules for when headers are visible or not.
+
+One of the rules is always in effect: _The currently selected section along with
+all of its sibling, ancestor and child/descendant sections will always be visible._
+
+For additional control set `musecnav_display_mode` as follows:
+
+* `all`: the entire section hierarchy is visible at all times
+* `top`: all of the top-level (level one) sections are visible at all times [default]
+* `none`: no additional rules
+
+`all` is pretty self explanatory but the other two require a bit more explanation
+since what you see depends on the level of the currently selected header.
+
+CAUTION: Only Asciidoc documents have a notion of "document root". For Markdown you
+can just ignore it in the following explanations.
+
+The displayed sections when at the top two levels are fixed as follows:
 
 When the currently selected section is...
 
-_...the document root:_
+_...the document root (Asciidoc only):_
 
    Document root (level 0)
      All level 1 section headers
@@ -204,30 +261,57 @@ _...a top-level section (level 1):_
 
 _...deeper than level 1:_
 
-This depends on the value of `musecnav_show_topsects_always`.
+This depends on the value of `musecnav_display_mode`.
 
 If that setting is...
 
-_...enabled (the default):_
+_...'top' (the default):_
 
    Document root (level 0)
      All level 1 sections preceding selection's level 1 ancestor
-     Ancestor sections between root and selection parent (levels 1 to N-2)
+     Selection's ancestors, from level one to its parent's parent (levels 1 to N-2)
        Selection's parent section (at level N-1)
          All of the selection parent's child sections (level N)
            Selected section's subtree (level N+1 and down)
-     All level 1 section following selection's level 1 ancestor
+     All level 1 sections following selection's level 1 ancestor
 
-_...disabled:_
+_...'none':_
 
    Document root (level 0)
-     Ancestor sections between root and selection parent (levels 1 to N-2)
+     Selection's ancestors, from level one to its parent's parent (levels 1 to N-2)
        Selection's parent section (at level N-1)
          All of the selection parent's child sections (level N)
            Selected section's subtree (level N+1 and down)
 
-Note that regardless of the setting or the level the full ancestral line from current
-section to root of the document should always be shown.
+("Selection parent's child sections" is another way of saying "the selection and all
+of its siblings".)
+
+NOTE: I expect to soon have another display mode that will show the entire hierarchy
+of the selected section's level one ancestor at all times. If you can think of any
+other useful modes let me know.
+
+==== Other Ways to Change the Mode
+
+You can avoid setting `b:musecnav_display_mode` manually by using the user commands
+`MusecnavNextLayout` and `MusecnavPrevLayout`. These cycle forward and back,
+respectively, through the available settings.
+
+The same underlying functionality is available for key mapping as shown in these
+examples:
+
+    nmap <leader>N <Plug>MusecnavNextLayout
+    nmap <leader>P <Plug>MusecnavPrevLayout
+
+=== Popup Placement
+
+If you are using the popup menu it will by default appear on the right side of the
+window, centered vertically. If you want it to appear further left you can specify
+the column at which the popup's left side should be located with `musecnav_pop_col`.
+
+For example, to have the popup open with its left side at column 50 in the current
+buffer:
+
+    let b:musecnav_pop_col = 50
 
 === Popup Menu Colors
 
@@ -236,7 +320,7 @@ groups `Popup` and `PopupSelected` or, if those are not set, `PMenu` and `PMenuS
 Because popups are relatively new you'll find that `Popup`/`PopupSelected` are rarely
 set in color schemes. That means the `PMenu` groups are used and those aren't
 explicitly set too often either which means you end up with the default for `PMenu`
-which is a garish pink/violet. So I decided to define the two `Popup*` groups by
+which is a garish pink/magenta. So I decided to define the two `Popup*` groups by
 default. Instead of a fixed set of colors, though, I link them to other highlight
 groups. This way they will match (usually) whatever color scheme you are currently
 using.
@@ -248,109 +332,44 @@ If you still want to override them you are free too. Example:
 
 === Other Settings
 
-Turn off popups and enable the slide up navigation menu with:
+==== Menu Type
+
+Choose whether to use the popup or slide-up navigation menu with
+`musecnav_use_popup`.
+
+For example, to use the slide-up in all future runs of _musecnav_ add to your vimrc:
 
     let g:musecnav_use_popup = 0
 
-Change the in-menu 'current section' indicator like so:
+Of course, if your version of Vim doesn't support popups then setting this to 1 will
+have no effect.
 
-    let g:musecnav_place_mark = '*'
+==== Current Section Indicator
 
-== Performance
+Change the in-menu 'current section' indicator with `musecnav_place_mark`. By
+default, this is set to the character `▶`.
 
-I regularly use the plugin with an asciidoc file having 250 sections across more than
-8000 lines and, almost always, it's super fast and smooth in each of my vim/gvim
-versions. (Caveat: I do have a pretty beefy PC.) I say almost always because for
-reasons I don't yet understand it occasionally takes 10 or so seconds to scan the
-file. Not every time I open a document launch the popup or every time I do a hard
-reset (kbd:[Ctrl+F7]) but _some_ of those times. I need to investigate but it's rare
-so I don't feel much urgency. I'd be interested in hearing from anyone having a
-significantly more negative go of it.
+For example, to change the marker to a double angle bracket in the current buffer run
+this from the command line:
 
-== Known Issues
+    let b:musecnav_place_mark = '≫'
 
-WARNING: Markdown is currently pretty broken as I've been refining the Asciidoc
-support but I do plan on getting Markdown working well eventually.
+== Section Headers
 
-TIP: Use the primary header formats for Asciidoc and Markdown: single-line, starting
-with one or more `=` (Asciidoc) or `#` (Markdown). I may improve handling of the
-secondary formats in the future but right now they're just not a priority (I never
-use them).
+*This plugin will not work correctly if you do not use use valid section header
+syntax and semantics.* Precisely what that means isn't necessarily obvious,
+particularly in the case of Markdown, so in this section we'll spell it all out.
 
-=== Markdown
+.Markdown requirements
+* Vim's syntax highlighting feature _must_ be enabled.
+* Use a header format recognized by syntax highlighting.
+* Use legal section flow, i.e. _don't skip section levels when ascending_.
 
-There is currently rudimentary support for the Markdown format. The common ways of
-indicating headers are recognized per the following:
+.Asciidoc requirements
+* Use legal section flow, i.e. _don't skip section levels when ascending_.
 
-----
-  # H1
-  ## H2
-  ### H3
-  #### H4
-  ##### H5
-  ###### H6
-  
-  Note: Some implementations allow omitting the space after the '#'s. musecnav
-  allows for this.
-  
-  Alternatively, for H1 and H2, an underline-ish style:
-  
-  Alt-H1
-  ======
-  
-  Alt-H2
-  ------
-----
+NOTE: For most of its doctypes Asciidoc also allows "document" headers. These are
+found at the very beginning of a document and are denoted by a single `=` (or `#`)
+and are largely ignored by _musecnav_ at this time.
 
-Having run through a relatively large number of open-source Markdown files I've found
-that some people have little concern or knowledge of valid section flow (primarily
-meaning they will jump down more than one level between adjacent sections). There
-also seems to be a correlation between such people and use of the alternative header
-format. Besides, "keep your section numbering valid!", my advice (and a growing
-consensus, it seems) is to stick to the primary format (e.g. "## H2"). At this point
-I'm not putting any energy into robustly handling the alternative.
-
-Beyond that...
-
-There must be a blank line preceding each header. This helps eliminate some issues
-such as the one described next but if it turns out to be blocking valid Markdown or
-otherwise more trouble than its worth I'll change it.
-
-Some corner cases will trip up _musecnav_. For example, if you have
-a code section (ie. delimited by `++```++`) containing Bash and it includes a Bash
-comment (e.g. '# this is a comment') in the first column it will be mistakenly
-identified as a Markdown header.
-
-=== Asciidoc
-
-Only a single "level-0" section title is recognized (these are identified by a single
-`=` at the beginning of the line). While that is all that is allowed in the `article`
-and `manpage` doctypes the `book` doctype can have many. These represent a book's
-"parts" and they can contain multiple chapters (level 1).
-
-Asciidoc has an include directive and one thing it allows is seamless inclusion of
-other Asciidoc files. After conversion the primary file and the included files appear
-as a single document. Currently, included files are ignored but at some point I think
-it would be cool to allow navigation of them. Their sections would be
-integrated in the navigation menu. Upon selection of a section the appropriate file
-would be loaded, perhaps in a new window, and focus/cursor shifted to the selected
-section header within.
-
-(Regarding preference for Atx-style headers over Setext-style see
-http://asciidoctor.org/docs/asciidoc-recommended-practices/ for more info.)
-
-== Plans
-
-As mentioned earlier I may support additional markup formats. It's really easy to add
-new formats so it works most of the time. Just match a pattern. That hard(er) part is
-sniffing out the exceptions and handling them. For example, Asciidoc allows section
-headers independent of the main hierarchy by preceding them with `[discrete]`. Code
-had to be added to ignore these.
-
-At a minimum, I want to fix all outstanding Asciidoc issues and those Markdown issues
-that are likely to be encountered relatively frequently.
-
-Further out, I've thought a bit about the possibility of extending this to work
-beyond markup section headers. Examples: functions/methods for this or that
-programming language, Vim fold markers, user-defined delimiters, etc. That's getting
-quite a bit ahead of ourselves, though.
+[big yellow-background]#WIP. Additional details including a referesher on valid syntax coming soon!#
