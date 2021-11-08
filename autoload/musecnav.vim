@@ -13,10 +13,7 @@ set cpoptions&vim
 
 scriptencoding utf-8
 
-let g:musecnav_version = 111
-
-" 1: saves menu text in a variable (b:musecnav_menu_dump)
-let s:debugmode = 0
+let g:musecnav_version = 112
 
 " Patterns to match markup for AsciiDoc setext headers, levels 0-4
 let s:adsetextmarks = ['=', '\-', '~', '\^', '+']
@@ -35,10 +32,14 @@ let s:anchor = '%(\[\[[^[\]]+]])'
 
 " Function s:InitHeaderInfo {{{3
 "
-" Process title if it exists. Set a document name. Find first section header.
+" Locate the document's first section header and save it and its level.
+"
+" In Asciidoc documents look, also, for the optional document header. If found
+" this will provide the document title instead of the filename.
+"
 func! s:InitHeaderInfo()
 "    call Dfunc("InitHeaderInfo()")
-    let b:musecnav_firstsecheader = 0
+    let b:musecnav_firstsecheader = []
     let b:musecnav_hasdocheader = 0
     let b:musecnav_docname = expand('%')
 
@@ -59,7 +60,7 @@ func! s:InitHeaderInfo()
 "            call Decho("AD first (doc) header info: " . s:Struncate(b:musecnav_docheader))
             let b:musecnav_hasdocheader = 1
             let b:musecnav_docname = b:musecnav_docheader[2]
-            " HAS to be 1 or it's invalid
+            " With a doc header first section level must be...
             let b:musecnav_firstseclevel = 1
         else
             " section header
@@ -69,22 +70,20 @@ func! s:InitHeaderInfo()
         endif
     endif
 
-    if !b:musecnav_firstsecheader
+    if empty(b:musecnav_firstsecheader)
         let b:musecnav_firstsecheader = s:FindFirstSecHeader()
+        if empty(b:musecnav_firstsecheader)
+            throw "MU19: Couldn't find a section header!"
+        endif
         let b:musecnav_firstseclevel = b:musecnav_firstsecheader[1]
+"        call Decho("First section header: " 
+                \ . s:headInfoStr(b:musecnav_firstsecheader, 0))
     endif
 
     call setpos('.', l:curpos)
 
-    if b:musecnav_firstsecheader == [0, 0, 0, 0]
-        throw "MU19: Couldn't find a section header!"
-    endif
-
-"    call Decho("Doc's first header: " . s:headInfoStr(b:musecnav_firstsecheader, 0))
-    if &ft ==? 'asciidoc'
-        if b:musecnav_hasdocheader && b:musecnav_firstseclevel != 1
-            throw "MU18: book doctype initial section must be level 1"
-        endif
+    if &ft ==? 'asciidoc' && b:musecnav_hasdocheader && b:musecnav_firstsecheader[1] != 1
+        throw "MU18: book doctype initial section must be level 1"
     endif
 "    call Dret("InitHeaderInfo - normal exit")
 endfunction
@@ -138,12 +137,14 @@ func! s:Navigate() abort
             endif
     
             let b:musecnav_data.level = l:level
-"            call Decho("Cursor moved to level ".b:musecnav_data.level." section starting on line ".l:headerline)
             let b:musecnav_data.selheadline = l:headerline
 
             " move cursor back to starting point (mark ' set by search())
             call cursor(getpos("''")[1:])
         endif
+
+"        call Decho("Selected section updated. Level=" . b:musecnav_data.level
+                    \ . ", Line=" . b:musecnav_data.selheadline)
     endif
 
     " For non-popup menu a continuous draw-menu/get-input/process-input cycle
@@ -221,13 +222,14 @@ func! s:InitSectionTree(...) abort
         let b:musecnav_data.last_menu_text = []
     endif
 
-    " before we move the cursor...
+    " So we can return cursor to current position...
     let l:view = winsaveview()
 
     call setpos('.', [0, l:lineno, 1])
+
+    " Clear the primary data structure
     let b:musecnav_data.level_map = {}
     let b:musecnav_data.ancestor_map = {}
-
     let b:musecnav_data.sections = s:WalkSections(b:musecnav_firstseclevel, "")
     let b:musecnav_data.currparent = []
     let b:musecnav_data.filename = expand('%')
@@ -244,7 +246,9 @@ endfunc
 
 "                                                    NextSection_Asciidoc {{{4
 "
-" Find next AsciiDoc(tor) section. Also see s:FindNextSection()
+" Find next AsciiDoc(tor) section. See s:FindNextSection() for details on the
+" externals. The rest of this header is about internals.
+"
 "
 " Asciidoc allows atx-style headers. The preferred character for designating
 " such headers is '=' but Asciidoc also supports Markdown-style '#'...
@@ -287,25 +291,7 @@ endfunc
 "
 " END excerpt
 "
-" """""""""""""""""""""
-" QUESTIONS/ISSUES
-"
-" I haven't yet found a spec for AD support ofsetext headers only the
-" recommended practices doc that doesn't have in depth details. As a temporary
-" (I hope) fallback here are details from CommonMark MD:
-"
-"   A setext heading consists of one or more lines of text, not interrupted by
-"   a blank line, of which the first line does not have more than 3 spaces of
-"   indentation, followed by a setext heading underline. The lines of text
-"   must be such that, were they not followed by the setext heading underline,
-"   they would be interpreted as a paragraph: they cannot be interpretable as
-"   a code fence, ATX heading, block quote, thematic break, list item, or HTML
-"   block.
-"
-" It's that last part that I'm focused on as right now my pattern allows the
-" first line to start with shit like '*'. Wonder if I should just use \w
-"
-" TODO: is "give or take two characters" accurate? Do we care? 
+" TODO: is "give or take up to two characters" accurate? Do we care? 
 "
 " According to the rb asciidoctor parser the title cannot begin with '.'
 "
@@ -348,7 +334,6 @@ func! s:NextSection_Asciidoc(bkwd) abort
         let l:patt = '\v' . l:patt_s
     else
         throw "MU01: Initialization error - b:musecnav_header_type"
-    let l:curpos = getcurpos()
     endif
 
 "    call Decho("With first sec level " . b:musecnav_firstseclevel . " patt is " . l:patt)
@@ -362,13 +347,15 @@ func! s:NextSection_Asciidoc(bkwd) abort
         let l:curpos = getcurpos()
         let l:matchcol = l:curpos[2]
 
+        " Determine the header type
         if b:musecnav_header_type =~? 'a\(ny\|ll\)'
             if l:matchcol != 1
                 let l:issetext = 0
             else
-                let l:xxxx = search('\v' . l:patt_s, 'cn')
-"                call Decho("XX1: " . s:Struncate(getcurpos()[1:2]) . " :: " . l:xxxx . " => " . l:matchline)
-                let l:issetext = (l:xxxx == l:matchline)
+                let l:setextline = search('\v' . l:patt_s, 'cn')
+"                call Decho("setext check: " . s:Struncate(getcurpos()[1:2])
+                            \ . " :: " . lsetextline . " => " . l:matchline)
+                let l:issetext = (l:setextline == l:matchline)
             endif
         else
             let l:issetext = b:musecnav_header_type ==? 'setext'
@@ -456,13 +443,15 @@ func! s:NextSection_Asciidoc(bkwd) abort
     endwhile
 
 "    call Dret("NextSect_Asciidoc - no match")
-    return [0, 0, 0, 0]
+    return []
 endfunc
 
 "                                                    NextSection_Markdown {{{4
 "
+" Find next Markdown section. See s:FindNextSection() for details on the
+" externals. The rest of this header is about internals.
+"
 " header defined {{{5
-" Find the Markdown section header preceding or following the cursor position.
 "
 " Following is an excerpt from MD's 'official spec' (really just a blog
 " entry!).
@@ -516,14 +505,6 @@ endfunc
 " header defined 5}}}
 "
 """"""""""""""""""""""
-" TODO: Currently musecnav only supports 'atx' style headers.
-"
-" To handle setext headers the following would need to happen:
-" * Set true for fourth element in returned list.
-" * Set matchline to the first of the two lines (the content)
-" * Upstream adjust any line reading or increment/decrement to
-"   compensate for the double line.
-""""""""""""""""""""""
 " Vim's syntax highlighting match patterns
 "
 " syn match markdownH1 "^.\+\n=\+$" contained 
@@ -554,8 +535,6 @@ endfunc
 "
 " Combined: \v^%(\zs.+\ze\n[-=]+|#{1,6}\zs.{-}\ze#*\s*)$
 "
-" See also s:FindNextSection()
-"                                                                          }}}
 func! s:NextSection_Markdown(bkwd) abort
 "    call Dfunc("NextSect_Markdown(".a:bkwd.")")
 
@@ -610,7 +589,7 @@ func! s:NextSection_Markdown(bkwd) abort
     endwhile
 
 "    call Dret("NextSect_Markdown - no match")
-    return [0, 0, 0, 0]
+    return []
 endfunc
 
 "                                                         FindNextSection {{{4
@@ -619,10 +598,10 @@ endfunc
 "
 "   [matchline, matchcol, matchlevel, header]
 "
-" If no headers are found all values will be 0.
+" If no headers are found the list will be empty.
 "
 " Optional params
-"   bkwd : if truthy search backwards
+"   bkwd : if truthy then search backwards
 "                                                                          }}}
 func! s:FindNextSection(...) abort
 "    call Dfunc("s:FindNextSection(" . s:Struncate(a:000) . "), curpos: "
@@ -683,8 +662,8 @@ endfunc
 " Setext format is also allowed (underlined with '='s) though highly
 " discouraged.
 "
-" Return value of this function is an array containing information about the
-" first document or section title seen, if any. For a valid title the array
+" Return value of this function is a list containing information about the
+" first document or section title seen, if any. For a valid title the list
 " will look like this:
 "
 "   [line number, header level, header text]
@@ -695,7 +674,7 @@ endfunc
 "   [3, 0, 'Title']  (preceded by 2 lines of comments/attributes/blanks)
 "   [1, 1, 'Sec Head'] (not a title)
 "
-" If no title header was found an empty array is returned.
+" If no title header was found an empty list is returned.
 "
 " The only content permitted above the document title are blank lines, comment
 " lines and document-wide attribute entries. If the document title is present
@@ -746,7 +725,7 @@ func! s:FindFirstHeader()
         return l:ret
     endif
 
-    " now it's either a valid setext header or failed search (i.e. return [])
+    " now it's either a valid setext header or failed search
     let l:len = len(l:line)
     if l:len < 3
 "        call Dret("FindFirstADHeader :: not found")
@@ -788,7 +767,7 @@ endfunction
 " Most of the work is done in s:FindNextSection() and supporting functions so
 " look for further details there.
 "
-" Return value of this function is an array containing information about the
+" Return value of this function is a list containing information about the
 " first header seen. It will look like this:
 "
 "   [line number, header level, header text]
@@ -810,7 +789,11 @@ func! s:FindFirstSecHeader()
         endif
     endif
 
-    let [l:matchline, l:matchcol, l:matchlevel, l:header] = s:FindNextSection()
+    let l:match = s:FindNextSection()
+    if empty(l:match)
+        let l:match = [0, 0, 0, 0]
+    endif
+    let [l:matchline, l:matchcol, l:matchlevel, l:header] = l:match
 "    call Decho("1st sect :: " . s:headInfoStr([l:matchline, l:matchcol, l:matchlevel, l:header], 0))
 
     let l:title = getline(l:matchline)
@@ -852,26 +835,17 @@ func! s:WalkSections(level, parent) abort
 "    call Dfunc("WalkSections(".a:level.")")
     let l:levellist = []
 
-    let [l:matchline, l:matchcol, l:matchlevel, l:matchheader] = s:FindNextSection()
-"    call Decho("LVL" . a:level . " FINDNEXT :: " . s:headInfoStr(
-                \ [l:matchline, l:matchcol, l:matchlevel, l:matchheader], 0))
+    let l:match = s:FindNextSection()
 
-    while l:matchline > 0
-        " Set to true when we need to include the last found header when
-        " searching for the next one.
-        " Exclude ID/anchor element preceding or following section name if
-        " present. (These are strings enclosed in double square braces.)
-        " TODO: Move patterns to FindNextSec()? Or put in global var(s)?
-        let l:patt1 = '\v^' . b:headermark . '+\s+\zs%(\[\[[^[\]]+]])?\ze\S+'
-        let l:patt2 = '\v\s*\[\[[^[\]]+]]\s?$'
-        "let l:line = getline(l:matchline)
-            "\ ->substitute(l:patt1, '', '')
-            "\ ->substitute(l:patt2, '', '')
-"        call Decho("Processing header: " . l:matchheader)
+    while !empty(l:match)
+        let [l:matchline, l:matchcol, l:matchlevel, l:matchheader] = l:match
+"        call Decho("LVL" . a:level . " FINDNEXT :: " . s:headInfoStr(
+                \ [l:matchline, l:matchcol, l:matchlevel, l:matchheader], 0))
 
         if l:matchlevel != a:level && empty(l:levellist)
             if b:musecnav_parse_lenient
-"                call Decho("Skipping header with unexpected level ".l:matchlevel)
+"                call Decho("Skipping header with unexpected level [A] "
+                            \ . l:matchlevel)
             else
 "                call Dret("WalkSections - error 91")
                 throw "MU91: Illegal State (bad hierarchy)"
@@ -880,16 +854,18 @@ func! s:WalkSections(level, parent) abort
 
         if l:matchlevel == a:level
 "            call Decho("LVL".a:level.": match type ** SIBLING **")
-            let l:map = {'header': l:matchheader, 'level': l:matchlevel, 'subtree': []}
+            let l:map = {'header': l:matchheader, 'level': l:matchlevel,
+                        \ 'subtree': []}
             call add(l:levellist, [ l:matchline, l:map ])
-            call s:UpdateLevelMap(b:musecnav_data.level_map, a:level, [l:matchline, l:map.header])
-            call s:UpdateAncestorMap(b:musecnav_data.ancestor_map, l:matchline, [l:matchheader, a:parent])
+            call s:UpdateLevelMap(b:musecnav_data.level_map, a:level,
+                        \ [l:matchline, l:map.header])
+            call s:UpdateAncestorMap(b:musecnav_data.ancestor_map,
+                        \ l:matchline, [l:matchheader, a:parent])
         elseif l:matchlevel < a:level
 "            call Decho("LVL".a:level.": match type ** ANCESTOR **")
             call cursor(0, 1)
 "            call Dret("WalkSections - return to ancestor")
             return l:levellist
-
         elseif l:matchlevel == a:level + 1
 "            call Decho("LVL".a:level.": match type ** CHILD **")
             call cursor(0, 1)
@@ -897,16 +873,18 @@ func! s:WalkSections(level, parent) abort
             eval l:levellist[-1][1].subtree->extend(l:descendants)
         else
             if b:musecnav_parse_lenient
-                echohl WarningMsg | echo "Skipped unexpected level ".l:matchlevel | echohl None
+"                call Decho("Skipping header with unexpected level [B] "
+                            \ . l:matchlevel)
             else
 "                call Dret("WalkSections - error 92")
                 throw "MU92: Invalid hierarchy. See line ".l:matchline
             endif
         endif
 
-        let [l:matchline, l:matchcol, l:matchlevel, l:matchheader] = s:FindNextSection(0)
+        let l:match = s:FindNextSection()
 
-"        call Decho("LVL".a:level.": iteration end search() ret:".l:matchline)
+"        call Decho("LVL".a:level.": iteration end search() ret:"
+                    \ . s:headInfoStr(l:match, 0))
     endwhile
 
 "    call Decho("LEVELLIST ON RETURN: <<<".s:Struncate(l:levellist).">>>")
@@ -924,7 +902,8 @@ endfunc
 " Param 1: line number of a section header
 " Param 2: a recursively traversable ancestor map (dictionary with line number
 "          keys and list values: [section header, section parent line num]
-" Returns list of lists. Inner list form: [section start line, section header]
+"
+" Return: List of lists. Inner list form: [section start line, section header]
 "                                                                          }}}
 function! s:GetSectionAncestry(line, map)
     let l:res = []
@@ -969,14 +948,12 @@ func! s:DrawMenu() abort
     " the row number to highlight (the selected row)
     let l:hirownum = 0
 
-    "echom printf("lvl %d | menudata %s", l:currlevel, l:menudata)
     if !b:musecnav_use_popup
         echom '--------'
     endif
 
     while l:idx < len(l:menudata)
         let l:rowitem = l:menudata[l:idx]
-    "echom printf("idx %d, rowitem '%s'", l:idx, string(l:rowitem))
         let l:rowlevel = l:rowitem[0]
 "        call Decho("  process rowitem: " . s:Struncate(l:rowitem))
         let l:pad = '  '
@@ -985,14 +962,12 @@ func! s:DrawMenu() abort
             let l:pad = b:musecnav_place_mark . ' '
             let l:hirownum = l:idx + 1
         endif
-    "echom printf("pad '%s' | hirownum %d", l:pad, l:hirownum)
 
         " Add padding proportional to current row's section level
         let l:rowtext = repeat(' ', (l:rowlevel - 1) * 2)
                     \ . l:pad . l:rowitem[2]
         " Prepend menu line numbers and we have one menu item ready to go.
         let l:rowtext = printf("%2s", l:idx+1) . ": " . l:rowtext
-    "echom printf("rowtext '%s'", l:rowtext)
 "        call Decho("    into rowtext: " . l:rowtext)
         call add(l:displaymenu, l:rowtext)
 
@@ -1030,17 +1005,7 @@ func! s:DrawMenu() abort
 
         if l:hirownum > 0
             " last chosen section will be highlighted row
-			"let winid = popup_create('hello', {})
-			"let bufnr = winbufnr(winid)
-			"call setbufline(bufnr, 2, 'second line')
-
             call win_execute(popid, 'call cursor('.l:hirownum.', 1)')
-        endif
-
-        if has('b:musecnav_debug') && b:musecnav_debug
-            let g:musecnav_popinfo = popup_getpos(popid)
-            call extend(g:musecnav_popinfo, popup_getoptions(popid))
-            call extend(g:musecnav_popinfo, {"ww" : l:ww, "popcol" : l:popcol})
         endif
     else
         echom '--------'
@@ -1473,7 +1438,6 @@ endfunction
 let s:head_info_field_3 = ["Line", "Level", "Text"]
 let s:head_info_field_4 = ["Line", "Column", "Level", "Text"]
 
-"   [line number, header level, header text]
 " Returns a string with nicely formatted header info list values. These have
 " one of two forms:
 "
@@ -1482,10 +1446,18 @@ let s:head_info_field_4 = ["Line", "Column", "Level", "Text"]
 "
 " Based on the length of the list the appropriate names and values will
 " be paired together in the returned string ready for display.
+"
+" This function is meant to be used for printing diagnostic messages and the
+" like. It should not interrupt program flow and if an error occurs, e.g.
+" input is invalid, an error message will be returned instead of normal text.
+"
+" Param 1: the info list
+" Param 2: boolean; if truthy then elements are separated by newlines,
+"          otherwise by a comma and space
 function! s:headInfoStr(infolist, multiline)
     let l:len = len(a:infolist)
     if l:len != 3 && l:len != 4
-        throw "MU41: invalid header info list"
+        return "ERROR: Invalid input. 3 or 4 element list required."
     endif
 
     let l:fields = l:len == 3 ? s:head_info_field_3 : s:head_info_field_4
@@ -1500,6 +1472,7 @@ function! s:headInfoStr(infolist, multiline)
         endif
     endfor
 
+    " Strip trailing comma and space before returning
     return strcharpart(l:ret, 0, len(l:ret)-2)
 endfunction
 

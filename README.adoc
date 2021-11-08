@@ -95,23 +95,22 @@ kbd:[F7] :: Open the navigation menu.
 
 === Menu Navigation
 
-If you're version of Vim supports popups (i.e. version 8.1.1517 or later) the menu
-will appear in a popup window. Otherwise it will appear as a "drawer" that slides up
-from the bottom of the window. Note that navigation in the slide-up menu is somewhat
+If your version of Vim supports popups (i.e. version 8.1.1517 or later) the menu will
+appear in a popup window. Otherwise it will appear as a "drawer" that slides up from
+the bottom of the window. Note that navigation in the slide-up menu is somewhat
 limited compared to the popup.
 
 ==== Popup
 
-kbd:[J]/kbd:[K] or kbd:[Down]/kbd:[Up] :: Select row below/above the currently
-selected row.
+kbd:[J]/kbd:[K] or kbd:[Down]/kbd:[Up] :: Select next/previous row.
 
-kbd:[Shif+J]/kbd:[Shif+K] :: Select last/first row. 
+kbd:[Shift+J]/kbd:[Shift+K] :: Select last/first row. 
 
 Numbers 1-99 :: Select row corresponding to the entered number(s) (see the sidebar).
 
 kbd:[Enter] :: Move the cursor to the section header matching the selected row. The
                popup will remain open. If you hit kbd:[Enter] a second time within
-               a couple second the popup will be closed.
+               a couple seconds the popup will be closed.
 
 kbd:[Esc], kbd:[Ctrl+C] or kbd:[X] :: Close the navigation menu popup.
 
@@ -144,7 +143,7 @@ User enters 2. Select row 2 and buffer num. Etc. When user finally accepts selec
 with Enter buffer is always cleared.
 
 If you get confused hit Enter and retype desired number. (Though, really, it's not
-THAT confusing.;) 
+THAT confusing. ;) 
 
 CAUTION: This currently only works for 2-digit numbers so if you have 100 or more
 sections visible in the menu at one time the behavior is undefined. If you are
@@ -161,9 +160,11 @@ kbd:[Esc] / kbd:[Ctrl+C] or kbd:[Enter] by itself :: Close the menu.
 === Reset
 
 _musecnav_ monitors the current buffer and if it detects a change that could impact
-the location of any sections in the saved hierarchy it will rescan the file and show
-the updated hierarchy the next time the menu is opened. Nonetheless, you may
-occasionally want or need to use one of these:
+the _location_ of any sections in the saved hierarchy it will rescan the file and
+show the updated hierarchy the next time the menu is opened. However, a change that
+doesn't effect section locations, such as modifying a section title, will not result
+in a rescan. In cases like this you can force a rescan with one of these reset
+functions:
 
 kbd:[Shift+F7] :: "Soft" reset. Rescan section headers and open the navigation
   menu. Cursor position will be preserved.
@@ -325,7 +326,7 @@ default. Instead of a fixed set of colors, though, I link them to other highligh
 groups. This way they will match (usually) whatever color scheme you are currently
 using.
 
-If you still want to override them you are free too. Example:
+If you still want to override them you are free to. Example:
 
     hi Popup guifg=#3030ff guibg=black
     hi PopupSelected guifg=black guibg=#a0a0ff
