@@ -85,9 +85,10 @@ Otherwise see <<key-mappings, Key Mappings>> for help with defining your
 own hotkeys.
 
 WARNING: Since we don't want to override any of your existing key mappings you need
-to explicitly configure this plugin's hot keys. If the default key assignments don't
-conflict with your setup then all you need to do is to add the above line and you're
-ready to start using _musecnav_.
+to explicitly configure this plugin's hot keys. If the default key assignments for
+menu open and reset functions (namely kbd:[F7], kbd:[Shift+F7] and kbd:[Ctrl+F7])
+don't conflict with your setup then all you need to do is to add the above line and
+you're ready to start using _musecnav_.
 
 === Opening the Menu
 
