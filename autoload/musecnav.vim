@@ -13,7 +13,7 @@ set cpoptions&vim
 
 scriptencoding utf-8
 
-let g:musecnav_version = 112
+let g:musecnav_version = 113
 
 " Patterns to match markup for AsciiDoc setext headers, levels 0-4
 let s:adsetextmarks = ['=', '\-', '~', '\^', '+']
@@ -100,7 +100,7 @@ func! s:Navigate() abort
     let l:numsects = len(b:musecnav_data.sections)
 "    call Decho("After section tree init we have ".l:numsects." sections")
     if l:numsects == 0
-        echohl WarningMsg | echo "No headers identified! Aborting." | echohl None
+        echohl WarningMsg | echom "No headers identified! Aborting." | echohl None
 "        call Dret("Navigate - abort")
         return
     endif
@@ -199,7 +199,7 @@ func! s:InitSectionTree(...) abort
         "    let b:musecnav_data.buflines = l:lastlineno
         "else
         "    echohl WarningMsg
-        "    echo "Number of buffer lines changed. Navigation may be affected."
+        "    echom "Number of buffer lines changed. Navigation may be affected."
         "    echohl None
         "endif
     endif
@@ -535,6 +535,11 @@ endfunc
 "
 " Combined: \v^%(\zs.+\ze\n[-=]+|#{1,6}\zs.{-}\ze#*\s*)$
 "
+" Note: We also support the syntax highlighting of the popular vim-markdown
+" plugin. Fortunately, the relevant part of its highlighting works almost the
+" same as native Vim's. It just uses htmlH{1..6} as group names instead of
+" markdownH{1..6}.
+"
 func! s:NextSection_Markdown(bkwd) abort
 "    call Dfunc("NextSect_Markdown(".a:bkwd.")")
 
@@ -558,7 +563,7 @@ func! s:NextSection_Markdown(bkwd) abort
             " try/catch is overkill since we have only one check but this
             " mirrors the AD function
             let l:hiname = synIDattr(synID(l:matchline, l:matchcol, 0), "name")
-            if l:hiname !~# '^markdownH\d$'
+            if l:hiname !~# '^markdownH\d$' && l:hiname !~# '^htmlH\d$'
                 throw "Invalid: wrong syntax highlight group"
             endif
         catch /^Invalid/
@@ -848,7 +853,7 @@ func! s:WalkSections(level, parent) abort
                             \ . l:matchlevel)
             else
 "                call Dret("WalkSections - error 91")
-                throw "MU91: Illegal State (bad hierarchy)"
+                throw "MU91: Unexpected header depth, line ".l:matchline
             endif
         endif
 
@@ -877,7 +882,7 @@ func! s:WalkSections(level, parent) abort
                             \ . l:matchlevel)
             else
 "                call Dret("WalkSections - error 92")
-                throw "MU92: Invalid hierarchy. See line ".l:matchline
+                throw "MU92: Invalid hierarchy detected, line ".l:matchline
             endif
         endif
 
@@ -930,6 +935,7 @@ endfunction
 func! s:DrawMenu() abort
 "    call Dfunc("DrawMenu()")
 
+    " TODO: ancestors?! What is that?
     if b:musecnav_data.level > 1 && b:musecnav_display_mode ==# 'ancestors'
         let l:topancestor = s:GetSectionAncestry(
                     \ b:musecnav_data.currparent[0],
@@ -1011,7 +1017,7 @@ func! s:DrawMenu() abort
         echom '--------'
         let l:choice = input("Enter number of section: ")
         while strlen(l:choice) && type(eval(l:choice)) != v:t_number
-            echohl WarningMsg | echo "You must enter a valid number" | echohl None
+            echohl WarningMsg | echom "You must enter a valid number" | echohl None
             let l:choice = input("Enter number of section: ")
         endwhile
         redraw
@@ -1070,6 +1076,9 @@ endfunc
 " 2. lineno of sect header for curr section     [b:musecnav_data.selheadline]
 " 3. section/sub-section data to be menuized    [b:musecnav_data.sections]
 "
+" Return value is a List of Lists. Each contained list represents a header
+" that will be visible in the menu. Contents: [lvl, line, title]
+"
 " Enhancement todos:
 " * menu mode that displays all sections expanded
 "                                                                          }}}
@@ -1085,8 +1094,6 @@ func! s:MenuizeTree(level, secline, tree) abort
         let l:subtree = a:tree
     endif
 
-    let l:sibrangestart = 1
-    let l:sibrangeend = line('$')
     if &ft ==? 'asciidoc' && b:musecnav_hasdocheader
         " If there's a document header it'll be first menu item (ROOT)
         let l:levellist = [[0, 1, b:musecnav_docheader[2] . " (ROOT)"]]
@@ -1121,6 +1128,9 @@ func! s:MenuizeTree(level, secline, tree) abort
             eval l:levellist->add(l:sectdata->extend(l:topsect))
         endfor
     endif
+
+    let l:sibrangestart = 1
+    let l:sibrangeend = line('$')
 
     if !empty(b:musecnav_data.currparent)
 "        call Decho("Process parent ".s:Struncate(b:musecnav_data.currparent))
@@ -1182,7 +1192,7 @@ func! s:MenuizeTree(level, secline, tree) abort
             continue
         elseif l:siblineno > l:sibrangeend
             if ! l:recursed
-                echohl WarningMsg | echo "sib range end before recurse" | echohl None
+                echohl WarningMsg | echom "sib range end before recurse" | echohl None
             endif
             break
         endif
@@ -1518,7 +1528,7 @@ func! musecnav#navigate(...)
     try
         if &ft !=? 'asciidoc' && &ft !=? 'markdown'
 "            call Dret("musecnav#navigate - Wrong filetype")
-            echohl WarningMsg | echo "Not a valid filetype: " . &ft | echohl None
+            echohl WarningMsg | echom "Not a valid filetype: " . &ft | echohl None
             return
         endif
 
@@ -1534,7 +1544,7 @@ func! musecnav#navigate(...)
             let b:headermark = '#'
             if !exists("g:syntax_on")
                 echohl WarningMsg 
-                echo "Markdown section header detection requires that syntax highlighting be enabled"
+                echom "Markdown section header detection requires that syntax highlighting be enabled"
                 echohl None
                 return
             endif
@@ -1553,7 +1563,7 @@ func! musecnav#navigate(...)
         if b:musecnav_use_popup && !has('popupwin')
 "            call Dret("musecnav#navigate - Popups unsupported")
             echohl WarningMsg
-            echo 'Vim 8.1.1517 or later required for the popup-style menu'
+            echom 'Vim 8.1.1517 or later required for the popup-style menu'
             echohl None
             return
         endif
@@ -1580,9 +1590,22 @@ func! musecnav#navigate(...)
 
         call s:Navigate()
 "        call Dret("musecnav#navigate")
+    catch /^MUXX/
+        if get(g:, "musecnav_dev_mode", 0)
+            throw v:exception
+        endif
+
+        echohl WarningMsg
+        echom printf("Oops! MuSecNav ran into some trouble: %s", l:errmsg)
+        echohl None
     catch /^MU\d\+/
-        echohl ErrorMsg
-        echom printf("Fatal error in MuSecNav: %s [%s]", v:exception, v:throwpoint)
+        let l:errmsg = "MuSecNav can't proceed"
+        echohl WarningMsg
+        if get(g:, "musecnav_dev_mode", 0)
+            echom printf("%s: %s [%s]", l:errmsg, v:exception, v:throwpoint)
+        else
+            echom printf("%s: %s", l:errmsg, v:exception)
+        endif
         echohl None
     endtry
 endfunc
@@ -1603,15 +1626,6 @@ func! musecnav#CycleLayouts(diff)
     echom 'musecnav display mode: ' . b:musecnav_display_mode
 endfunc
 
-" musecnav#SetDisplayMode {{{4
-"                                                 musecnav#SetDisplayMode {{{5
-" Main entry point for normal plugin use. Primary hotkeys call this.
-"
-"
-" Any other value will result in an error.
-"                                                                          }}}
-func! musecnav#SetDisplayMode(mode)
-endfunc
 
 " Popup Functions {{{3
 
@@ -1715,16 +1729,20 @@ func! musecnav#InfoDump()
     endif
 
     echo printf("Sections: %s\n\n", b:musecnav_data.sections)
-    if exists('b:musecnav_data.last_menu_text')
-        echo printf("Last Menu: %s\n\n", b:musecnav_data.last_menu_text)
-    endif
     echo printf("Level Map: %s\n\n", b:musecnav_data.level_map)
     echo printf("Ancestor Map: %s\n\n", b:musecnav_data.ancestor_map)
 
-    let l:vars = ['b:musecnav_data.level', 'b:musecnav_data.selheadline', 'b:musecnav_data.currparent']
+    if exists('b:musecnav_data.last_menu_text')
+        echo printf("Last Menu:\n\n")
+        echo printf("Text: %s\n\n", b:musecnav_data.last_menu_text)
+        echo printf("Data: %s\n\n", b:musecnav_data.last_menu_data)
+    endif
+
+    let l:vars = ['b:musecnav_data.last_menu_row', 'b:musecnav_data.level', 'b:musecnav_data.selheadline', 'b:musecnav_data.currparent']
     for l:var in l:vars
         if exists(l:var)
-            echo printf("%-18s : %s\n", split(l:var, '_')[1], eval(l:var))
+            echo printf("%-18s : %s\n",
+                        \ join(split(l:var, '_')[1:], '_'), eval(l:var))
         endif
     endfor
     call musecnav#HeaderInfoDump()
@@ -1793,6 +1811,13 @@ endfunc
 " . Save current line text (e.g. append to register)
 " . Save menu text using that `for` loop a few sections back
 " . Repeat
+"
+" TODO: Instead of storing output to a variable and then echoing all of it to
+" a redirect (lame) can we write result text to file/register one line at a
+" time?
+"
+" Param 1: 1 output to file, 0 output to star register (clipboard)
+" Param 2: put the output file in this directory
 func! musecnav#T_RunFuncTest(tofile, ...)
     let l:outdir = '.'
     if a:tofile && a:0
@@ -1871,4 +1896,4 @@ endfunc
 let &cpoptions = s:save_cpo
 unlet s:save_cpo
 
-" Vim: set fdl=2 fcl=all fdc=5:
+" Vim: set fdl=2 fdc=5:

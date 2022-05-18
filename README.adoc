@@ -200,7 +200,8 @@ mappings by adding the following to your vimrc file:
 
 If you'd prefer to define your own mappings it works like most plugins out there:
 find the applicable `<Plug>` mappings and map the desired key(s) to the ones of
-interest. You can find the `<Plug>` mappings for _musecnav_ with this:
+interest. You can find the `<Plug>` mappings for _musecnav_ by running the following
+command while editing an Asciidoc or Markdown document:
 
     filter /musecnav/ map
 
