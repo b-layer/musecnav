@@ -31,18 +31,15 @@ scriptencoding utf-8
 "   (Normally, '#' is also allowed.)
 "
 " display_mode : 
-"   Specifies rule for expanding section headers in the menu. The following
-"   are always expanded:
+"   Specifies rule for expanding section headers in the menu. These are in
+"   addition to one rule always in effect: the selected section and all its
+"   ancestors, siblings and descendants will be visible.
 "
-"   * selected section and all ancestors and children/descendants
-"   * all top-level sections if selected section is top-level
-"
-"   Additional headers may be opened per the following setting values (the
-"   default value is 'top'):
+"   Additional headers may be opened per the following setting values:
 "
 "       all : entire hierarchy is expanded at all times
-"       top : all sections at same level as selected are expanded
-"       none : no additional expansions; baseline rules only
+"       top : all top (level one) sections are always visible [default]
+"       none : no additional expansions; baseline rule only
 "
 " header_type : 
 "   Must have one of the following values:
@@ -59,7 +56,10 @@ scriptencoding utf-8
 "
 " use_popup : 
 "   If enabled Vim's popup window feature will be used for menus. Otherwise,
-"   you'll get a slide up 'shelf'.
+"   you'll get a slide up 'shelf'. If popup feature is available this is
+"   enabled by default.
+"
+" TODO handle nvim. Use `if has('nvim')`
 "
 let s:settings_and_defaults = [
          \ ['parse_lenient', 0],
@@ -81,11 +81,8 @@ function! s:musecnav_init_settings()
     " overrides and the side benefit of not polluting global namespace.
     for l:entry in s:settings_and_defaults
         let l:varname = 'b:musecnav_' . l:entry[0]
-        if exists('g:musecnav_' . l:entry[0])
-            exe 'let ' . l:varname . ' = "' . eval('g:musecnav_' . l:entry[0]) . '"'
-        else
-            exe 'let ' . l:varname . ' = "' . l:entry[1] . '"'
-        endif
+        exe 'let ' . l:varname . ' = "' .
+                    \ get(g:, 'musecnav_' . l:entry[0], l:entry[1]) . '"'
         eval g:musecnav_config_vars->add(l:varname)
         "call Decho(printf("%s = %s", 'b:musecnav_' . l:entry[0], eval('b:musecnav_' . l:entry[0])))
     endfor
@@ -120,14 +117,14 @@ endfunction
 
 " s:musecnav_create_mappings {{{1
 function! s:musecnav_create_mappings()
-    noremap <script> <Plug>MusecnavNavigate    :call musecnav#navigate()<CR>
+    nnoremap <script> <Plug>MusecnavNavigate    :call musecnav#navigate()<CR>
     " aka soft reset
-    noremap <script> <Plug>MusecnavReinit      :call musecnav#navigate(1)<CR>
+    nnoremap <script> <Plug>MusecnavReinit      :call musecnav#navigate(1)<CR>
     " aka hard reset
-    noremap <script> <Plug>MusecnavReset       :call musecnav#navigate(2)<CR>
+    nnoremap <script> <Plug>MusecnavReset       :call musecnav#navigate(2)<CR>
     " cycle through display modes
-    noremap <script> <Plug>MusecnavNextLayout  :call musecnav#CycleLayouts(1)<CR>
-    noremap <script> <Plug>MusecnavPrevLayout  :call musecnav#CycleLayouts(-1)<CR>
+    nnoremap <script> <Plug>MusecnavNextLayout  :call musecnav#CycleLayouts(1)<CR>
+    nnoremap <script> <Plug>MusecnavPrevLayout  :call musecnav#CycleLayouts(-1)<CR>
 
     if !exists("g:no_plugin_maps") && !exists("g:no_musecnav_maps") &&
         \ exists("g:musecnav_use_default_keymap") && g:musecnav_use_default_keymap
@@ -168,14 +165,9 @@ function! s:musecnav_initialize()
 
     call s:musecnav_create_mappings()
 
-    if !exists(":MuNavigate")
-        " TODO: either document this or get rid of it
-        command! -buffer -nargs=? -complete=function MusecnavNavigate call musecnav#navigate(<f-args>)
-
-        "command! -buffer -nargs=1 MuSetDisplayMode call musecnav#SetDisplayMode(<f-args>)
-        command! -buffer -nargs=0 MusecnavNextLayout call musecnav#CycleLayouts(1)
-        command! -buffer -nargs=0 MusecnavPrevLayout call musecnav#CycleLayouts(-1)
-    endif
+    "command -buffer -nargs=1 MuSetDisplayMode call musecnav#SetDisplayMode(<f-args>)
+    command -buffer -nargs=0 MusecnavNextLayout call musecnav#CycleLayouts(1)
+    command -buffer -nargs=0 MusecnavPrevLayout call musecnav#CycleLayouts(-1)
 
     let g:musecnav_initialized = 1
 endfunction
