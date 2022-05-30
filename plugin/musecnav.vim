@@ -21,38 +21,39 @@ scriptencoding utf-8
 "
 " Some details about the settings...
 "
-" parse_lenient
-"   When enabled, try to continue processing document in the face of certain
-"   non-conforming formats (ie. ignore offending lines). Otherwise, errors are
-"   thrown, aborting processing. (WIP. Don't expect any miracles!)
-"
-" strict_headers : 
-"   When enabled only '=' is allowed for designating AsciiDoc section headers.
-"   (Normally, '#' is also allowed.)
-"
 " display_mode : 
-"   Specifies rule for expanding section headers in the menu. These are in
-"   addition to one rule always in effect: the selected section and all its
-"   ancestors, siblings and descendants will be visible.
+"   Specifies the rules used to determine whether a section is visible or not
+"   in the menu. The three settings from most to least restrictive 'selected'
+"   'ancestor', and 'all'. (It's sufficient to use shortened names as long as 
+"   the first three letters are present.)
 "
-"   Additional headers may be opened per the following setting values:
+"   The associated rules are:
 "
-"       all : entire hierarchy is expanded at all times
-"       top : all top (level one) sections are always visible [default]
-"       none : no additional expansions; baseline rule only
+"   [sel]
+"        * All top level sections
+"        * The selected section
+"        * The selected section's ancestors, siblings and descendants
 "
-" header_type : 
-"   Must have one of the following values:
-"       atx : only recognizes atx (single-line) headers
-"       setext : only recognizes setext (two-line) headers
-"       any : first header in document determines recognized form
-"       all : document can contain mix of atx and setext headers
+"   [anc]
+"        * All top level sections
+"        * The selected section
+"        * All descendants of the selected section's top-level ancestor
 "
-" Dude, why? You should handle whatever you come across including mixed header
-" types. The demo/test doc asciidoc-test-doc.adoc, for one, is mixed.
+"   [all]
+"        * Entire hierarchy is always displayed
+"
+"   The default setting is 'anc'.
 "
 " place_mark : 
 "   Character that designates the currently selected menu item.
+"
+" pop_col : 
+"   Column number on which the popup menu will be positioned. If not specified
+"   the popup will positioned to the far right.
+"
+" max_header_len : 
+"   Section titles longer than this will be truncated. If the value is 0 no
+"   truncation takes place.
 "
 " use_popup : 
 "   If enabled Vim's popup window feature will be used for menus. Otherwise,
@@ -60,21 +61,21 @@ scriptencoding utf-8
 "   enabled by default.
 "
 " TODO handle nvim. Use `if has('nvim')`
-"
+
+
+" TODO: change display_mode to 'anc'
 let s:settings_and_defaults = [
-         \ ['parse_lenient', 0],
-         \ ['strict_headers', 0],
-         \ ['display_mode', 'top'],
-         \ ['header_type', 'all'],
+         \ ['display_mode', 'anc'],
          \ ['place_mark', '▶'],
          \ ['pop_col', 999],
-         \ ['use_ad_synhi', 0],
+         \ ['use_ad_synhi', 1],
+         \ ['max_header_len', 50],
          \ ['use_popup', has('popupwin')]]
 
 " s:musecnav_init_settings {{{1
 
 function! s:musecnav_init_settings()
-    let g:musecnav_config_vars = []
+    "let g:musecnav_config_vars = []
 
     " Globals are needed only if user wants to use a non-default value. Either
     " way all settings are saved as buffer locals allowing per-buffer
@@ -83,23 +84,11 @@ function! s:musecnav_init_settings()
         let l:varname = 'b:musecnav_' . l:entry[0]
         exe 'let ' . l:varname . ' = "' .
                     \ get(g:, 'musecnav_' . l:entry[0], l:entry[1]) . '"'
-        eval g:musecnav_config_vars->add(l:varname)
+        "eval g:musecnav_config_vars->add(l:varname)
         "call Decho(printf("%s = %s", 'b:musecnav_' . l:entry[0], eval('b:musecnav_' . l:entry[0])))
     endfor
 
-    " TODO: clean the rest of this up (use the preceding loop if possible)
-
-    let g:musecnav_popup_title_idx = 1
-    let g:musecnav_popup_titles = ['Markup Section Headers', 'Up/Down or 1-99 then <Enter>']
-
-    let g:musecnav_popup_higroups = [
-                \ ['Statement', 'Identifier', 'Constant', 'String'],
-                \ ['Todo', 'WildMenu', 'Warning']]
-
-    let g:musecnav_popup_modifiable = 0
-    let g:musecnav_refresh_checks='bar,buflines,foo'  " headertext, headerloc
-
-    if !exists('g:musecnav_popup_fixed_colors')
+    if !get(g:, 'musecnav_no_pop_hi')
         " TODO: figure out hi
         " By default popups use PMenu/PMenuSel highlight group. In many themes
         " those aren't set which means the default color: an awful, garish pink.
@@ -110,7 +99,6 @@ function! s:musecnav_init_settings()
         if hlID("Popup") == 0
             hi link Popup Statement
             hi link PopupSelected Todo
-            let g:musecnav_popup_modifiable = 1
         endif
     endif
 endfunction
