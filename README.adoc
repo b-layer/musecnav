@@ -26,32 +26,54 @@ _Musecnav_ (**M**ark**U**p **SEC**tion **NAV**igation) is a Vim plugin that allo
 allows quick navigation of sections in <<section-headers, well-formed>> Asciidoc and
 Markdown documents.
 
-image::screenshots/example1.png[example]
+image::screenshots/example1.png[488,530,example]
+
+___
+
+.8/28/2022 Update
+[IMPORTANT]
+====
+
+I've done an almost complete rewrite of the code making it easier to maintain and
+improve the plugin (and I plan on doing both those things for the foreseeable
+future). My hope is that you won't have any problems but in that unfortunate event...
+
+* Please report it by creating a new _issue_.
+* If you need it, the previous version has been tagged with `pre-redesign`.
+
+Otherwise, the changes should be mostly transparent to you with one exception: there
+is a new section display mode, 'ancestor'. This is the new default mode, replacing
+'selected' as I believe it is more practical. If you prefer the old default you can
+change it back with the `musecnav_display_mode` setting. All of the details are in
+<<section-display-modes>>.
+====
 
 == Overview
 
 TIP: If you just want to jump in and go a quick read of <<hot-keys, Hot Keys>> should be
 all that you need after installation.
 
-I regularly edit files containing text formatted with Asciidoc markup. In large files
-especially, moving from section to section is quite a pain so I decided to try my
-hand at Vim plugin development and create a section navigation menu. I created it for
-my own benefit originally but it's been so useful to me that it seemed like a good
-idea to share it. And though I use Markdown far less frequently, it is obviously very
-popular so I decided to add support for that, too.
+I regularly edit files containing markup. Moving from section to section is quite a
+pain, especially in large files, so I created this plugin to display a section
+navigation menu.
 
-Basically, the plugin works like this: open the navigation menu, navigate through the
-section hierarchy until you get to the section you want. When the menu is closed the
-cursor will be positioned at that section's header. 
+Basically, _musecnav_ works like this: open the navigation menu and navigate through
+the section hierarchy using Enter to select/expand sections. When you get to the
+section you were looking for close the menu and the cursor will be positioned at that
+section's header. 
 
 The menu is updated, as necessary, each time it's opened so it accurately reflects
 the document's section hierarchy and the current cursor position. There are several
-layout schemes available (e.g. you can configure the plugin to always show the
-hierarchy fully expanded or to only expand the subtree within which the cursor lies)
-with additional schemes planned. There are a few other ways to customize the menu,
-too, as described in <<settings>>.
+<<section-display-modes>> available so you can, for example, configure the plugin to
+always show the hierarchy fully expanded or to only expand the subtree within which
+the cursor lies. There are a few other ways to customize the menu, too, as described
+in <<settings>>.
 
 == Installation
+
+WARNING: _Musecnav_ relies on Vim's syntax highlighting feature to augment its
+section detection. If you're not using standard Vim syntax files for
+Markdown/Asciidoc please see <<compatibility>>.
 
 Standard stuff here. If you use a plugin manager that plays nice with GitHub you
 probably know what to do. Using vim-plug as an example...
@@ -110,8 +132,9 @@ kbd:[Shift+J]/kbd:[Shift+K] :: Select last/first row.
 Numbers 1-99 :: Select row corresponding to the entered number(s) (see the sidebar).
 
 kbd:[Enter] :: Move the cursor to the section header matching the selected row. The
-               popup will remain open. If you hit kbd:[Enter] a second time within
-               a couple seconds the popup will be closed.
+               section's subtree, if any, will become visible if it wasn't already.
+               The popup will remain open. If you hit kbd:[Enter] a second time
+               within a couple seconds the popup will be closed.
 
 kbd:[Esc], kbd:[Ctrl+C] or kbd:[X] :: Close the navigation menu popup.
 
@@ -167,11 +190,13 @@ doesn't effect section locations, such as modifying a section title, will not re
 in a rescan. In cases like this you can force a rescan with one of these reset
 functions:
 
-kbd:[Shift+F7] :: "Soft" reset. Rescan section headers and open the navigation
-  menu. Cursor position will be preserved.
+kbd:[Shift+F7] :: "Soft" reset. Clear section data, rescan section headers and open
+                  the navigation menu. This will identify section title changes.
 
-kbd:[Ctrl+F7] :: "Hard" reset. Rescan doc and section headers, reset the cursor to
-                 the first line of the document and open the navigation menu.
+kbd:[Ctrl+F7] :: "Hard" reset. Clear all state, rescan section headers and, for
+                 Asciidoc, any document headers and open the navigation menu. If, for
+                 some reason, a soft reset didn't pick up a particular change this
+                 will.
 
 == Settings
 
@@ -205,6 +230,10 @@ command while editing an Asciidoc or Markdown document:
 
     filter /musecnav/ map
 
+IMPORTANT: Only functions used in the regular edit window are mappable. All of the
+in-menu navigation keys are currently hard-coded. Contact me if this is a problem for
+you.
+
 The most important one is that which launches the navigation menu/popup.
 Specifically, `<Plug>MusecnavNavigate`. A valid mapping to that would look like this:
 
@@ -229,69 +258,38 @@ kbd:[Shift+F3] and kbd:[Ctrl+F3], respectively.
 
 === Section Display Modes
 
-The way section headers are displayed in the navigation menu is configurable.
-Specifically, there are rules for when headers are visible or not.
+As you navigate through a document hierarchy, section visibility changes. Some
+sections will be hidden and some will be visible. This visibility is determined by
+a set of rules. A specific set of activated rules is referred to as a display mode.
+The user can choose which of the available display modes will be used.
 
-One of the rules is always in effect: _The currently selected section along with
-all of its sibling, ancestor and child/descendant sections will always be visible._
+Regardless of which display mode is selected, the following is always true:
 
-For additional control set `musecnav_display_mode` as follows:
+_The currently selected section along with all of its sibling, ancestor and
+descendant sections will always be visible._
 
-* `all`: the entire section hierarchy is visible at all times
-* `top`: all of the top-level (level one) sections are visible at all times [default]
-* `none`: no additional rules
+Additional rules are determined by the display mode name currently assigned to the
+`musecnav_display_mode` setting. The available modes, from most to least restrictive,
+are _selected_, _ancestor_ and _all_. The sections that will be displayed for each of
+these modes are:
 
-`all` is pretty self explanatory but the other two require a bit more explanation
-since what you see depends on the level of the currently selected header.
+.selected
+* All top level sections
+* The selected section
+* The selected section's ancestors, siblings and descendants
 
-CAUTION: Only Asciidoc documents have a notion of "document root". For Markdown you
-can just ignore it in the following explanations.
+.ancestor
+* All top level sections
+* The selected section
+* The selected section's top-level ancestor and all of the ancestor's descendants.
 
-The displayed sections when at the top two levels are fixed as follows:
+.all
+* All sections
 
-When the currently selected section is...
+The default display mode is 'ancestor'.
 
-_...the document root (Asciidoc only):_
-
-   Document root (level 0)
-     All level 1 section headers
-
-_...a top-level section (level 1):_
-
-   Document root (level 0)
-     All level 1 section headers
-       Headers for selected section's subtree
-
-_...deeper than level 1:_
-
-This depends on the value of `musecnav_display_mode`.
-
-If that setting is...
-
-_...'top' (the default):_
-
-   Document root (level 0)
-     All level 1 sections preceding selection's level 1 ancestor
-     Selection's ancestors, from level one to its parent's parent (levels 1 to N-2)
-       Selection's parent section (at level N-1)
-         All of the selection parent's child sections (level N)
-           Selected section's subtree (level N+1 and down)
-     All level 1 sections following selection's level 1 ancestor
-
-_...'none':_
-
-   Document root (level 0)
-     Selection's ancestors, from level one to its parent's parent (levels 1 to N-2)
-       Selection's parent section (at level N-1)
-         All of the selection parent's child sections (level N)
-           Selected section's subtree (level N+1 and down)
-
-("Selection parent's child sections" is another way of saying "the selection and all
-of its siblings".)
-
-NOTE: I expect to soon have another display mode that will show the entire hierarchy
-of the selected section's level one ancestor at all times. If you can think of any
-other useful modes let me know.
+Note: you may use abbreviated mode names as long as at least the first three letters
+are present.
 
 ==== Other Ways to Change the Mode
 
@@ -360,19 +358,56 @@ this from the command line:
 == Section Headers
 
 *This plugin will not work correctly if you do not use use valid section header
-syntax and semantics.* Precisely what that means isn't necessarily obvious,
-particularly in the case of Markdown, so in this section we'll spell it all out.
+syntax and semantics.*
 
 .Markdown requirements
 * Vim's syntax highlighting feature _must_ be enabled.
-* Use a header format recognized by syntax highlighting.
+* Use a header format recognized by the syntax highlighting in Vim.
 * Use legal section flow, i.e. _don't skip section levels when ascending_.
 
 .Asciidoc requirements
+* Use a header format allowed per the Asiidoc spec.
 * Use legal section flow, i.e. _don't skip section levels when ascending_.
 
-NOTE: For most of its doctypes Asciidoc also allows "document" headers. These are
-found at the very beginning of a document and are denoted by a single `=` (or `#`)
-and are largely ignored by _musecnav_ at this time.
+While syntax highlighting doesn't have to be enabled for Asciidoc navigation it's
+recommended as it will likely improve results when editing complex markup.
 
-[big yellow-background]#WIP. Additional details including a referesher on valid syntax coming soon!#
+NOTE: For most _doctypes_ Asciidoc allows a _document header_ to be added to the
+beginning of a document. They are marked by a single `=` (or `#`) and are considered
+level 0 headers. They are treated by _musecnav_ as a special level 1 section header
+denoting the start of a document. (_Musecnav_ doesn't currently support the "book"
+doctype which allows multiple level 0 headers but this feature is on the roadmap.)
+
+== Compatibility
+
+As noted previously _musecnav_ makes use of Vim's syntax highlighting feature to
+augment its section searching. If you are using a custom Asciidoc or Markdown syntax
+file with different highlight group names the plugin may not work well.
+
+Besides Vim's default syntax files _musecnav_ has been tested with those from the
+following popular plugins:
+
+* https://github.com/dahu/vim-asciidoc[dahu/vim-asciidoc]
+* https://github.com/habamax/vim-asciidoctor[habamax/vim-asciidoctor]
+* https://github.com/plasticboy/vim-markdown[plasticboy/vim-markdown]
+
+If you'd like there to be compatibility with another plugin's syntax file create a
+new issue.
+
+As a workaround, if you're using using Asciidoc you can try disabling _musecnav's_
+use of Vim's synhi by adding this to your vimrc:
+
+    let g:musecnav_use_ad_synhi = 0
+
+This will likely help in your case but with complex markup there may be misidentified
+sections.
+
+== Roadmap
+
+Some things I have in mind for future versions of _musecnav_:
+
+* [AD] Handle different doctypes (e.g. book with multiple level 0 headers)
+* [AD] Handle included files
+* Neovim support
+* Other ideas? 
+

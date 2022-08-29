@@ -50,7 +50,7 @@ function! musecnav#section#new(id, line, level, title)
                 \ (self.visible ? '+' : '-'),
                 \ self.id, self.line, self.level, self.title)
         if a:full
-            let l:str .= printf(", parent: %s, children: %s", 
+            let l:str .= printf(", parent: %s, children: %s",
                     \ self.parent->empty() ? '-' : self.parent.id,
                     \ musecnav#util#list_dict_vals('id', self.children))
         endif
@@ -66,4 +66,4 @@ endfunction
 let &cpoptions = s:save_cpo
 unlet s:save_cpo
 
-" vim:fdl=2:fdc=3:fdm=marker:fmr={{{,}}}
+" vim:fdl=2:fdm=marker:fmr={{{,}}}

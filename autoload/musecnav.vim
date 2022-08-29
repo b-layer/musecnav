@@ -9,17 +9,62 @@ set cpoptions&vim
 scriptencoding utf-8
 
 let g:musecnav_version = 114
+" Minimum number of section header title characters to display 
+let s:min_title_length = 5
+
+" Function s:LoadSections {{{1
+"                                                         LoadSections {{{2
+" Scan the buffer and build the section header hierarchy, as needed.
+"
+" Params:
+" lineno - scan starts on this line [default: line 1]
+"                                                                          }}}
+function! s:LoadSections(lineno=1) abort
+"    call Dfunc("LoadSections(". a:lineno . ")")
+    let l:lastlineno = line('$')
+    let l:rebuild = 0
+
+    " If the number of lines in the buffer has changed then rescan buffer.
+    " Note: I thought about checking b:changedtick here as a rescan trigger
+    " but that'll almost surely result in too many unnecessary reloads.
+    if exists('b:musecnav.buflines') && b:musecnav.buflines != l:lastlineno
+"        call Decho("Number of buffer lines changed. Rescanning.")
+        let l:rebuild = 1
+    endif
+    let b:musecnav.buflines = l:lastlineno
+
+    " Initialization of the search object is usually done only once. The
+    " exception is if there's a significant structural change, such as removal
+    " of a document header. The user can do a hard reset to re-trigger this.
+    if !exists('b:musecnav.searchobj') || empty(b:musecnav.searchobj)
+        let b:musecnav.searchobj = musecnav#search#init()
+    endif
+
+    " Nothing to do if headers are already scanned unless rebuild flag is set.
+    if exists('b:musecnav.doc.sections') && !l:rebuild
+"        call Dret("LoadSections - sections already scanned")
+        return 0
+    endif
+
+    echom "Processing section headers..."
+    let b:musecnav.doc = musecnav#document#build(b:musecnav.searchobj)
+    echom "done"
+    redraws
+
+"    call Dret("LoadSections - result: " . b:musecnav.doc.to_string(1))
+    return 1
+endfunction
 
 " Function s:ShowMenu {{{1
-
-" Scan the buffer for section headers, as needed, then display the sections in
-" a popup or drawer.
-func! s:ShowMenu() abort
+"
+" Do a bit of sanity checking on state before calling DrawMenu() to actually
+" show the sections in a popup or drawer. Then drawer lifecycle and user
+" interaction is handled here. (The popup menu is handled in a more global
+" scope due to its dependence on Vim).
+"
+function! s:ShowMenu() abort
 "    call Dfunc("Navigate()")
-
-    call s:LoadSections()
-
-    if b:musecnav_doc.is_empty()
+    if b:musecnav.doc.is_empty()
         echohl WarningMsg | echom "No headers identified! Aborting." | echohl None
 "        call Dret("Navigate - abort")
         return
@@ -29,19 +74,17 @@ func! s:ShowMenu() abort
     " currently resides in and make that the new 'current section' before
     " building the menu.
     let l:currline = getcurpos()[1]
-"    call Decho("last line: ".b:musecnav_doc.currsec.line ." curr line: ".l:currline)
-
-    if b:musecnav_doc.currsec.line != l:currline
-        call b:musecnav_doc.set_current_section(l:currline)
-"        call Decho("Selected section updated, line: " . b:musecnav_doc.currsec.line)
+"    call Decho("last line: ".b:musecnav.doc.curr_sec_line() ." curr line: ".l:currline)
+    if b:musecnav.doc.curr_sec_line() != l:currline
+        call b:musecnav.doc.set_curr_sec(l:currline)
+"        call Decho("Selected section updated, line: " . b:musecnav.doc.curr_sec_line())
     endif
 
     " For non-popup menu a continuous draw-menu/get-input/process-input cycle
     " happens here. Loop is exited only upon user entering return alone.
     " For popup menu we break out of the loop immediately after menu is drawn
-    " since popups are handled in separate threads and thus there's no reason
-    " to maintain this loop. ProcessSelection will be called from the popup
-    " callback function.
+    " since popup interaction is handled by Vim (ProcessSelection will be
+    " called from the popup callback function.)
     while (1)
         " reset the digit entry 'buffer'
         let s:musecnav_select_buf = -1
@@ -54,76 +97,30 @@ func! s:ShowMenu() abort
     endwhile
 
 "    call Dret("Navigate - normal exit")
-endfunc
+endfunction
 
-" Function s:LoadSections {{{1
-"                                                         LoadSections {{{2
-" Build the section header hierarchy.
-"
-" 1. Change in number of buffer lines? Set rebuild flag.
-" 2. If not rebuild and we already have data just return.
-" 6. document#build()
-"
-" Optional arg:
-"   a:1 - starting line number for scan instead of default 1
-"                                                                          }}}
-func! s:LoadSections(lineno=1) abort
-"    call Dfunc("LoadSections(". a:lineno . ")")
-    let l:lastlineno = line('$')
-    let l:rebuild = 0
-
-    if exists('b:musecnav_data.buflines') && b:musecnav_data.buflines != l:lastlineno
-"        call Decho("Number of buffer lines changed. Rescanning.")
-        let l:rebuild = 1
-    endif
-    let b:musecnav_data.buflines = l:lastlineno
-
-    " Return if tree already built unless forced b/c file contents changed
-    " or param flag was set (usually due to Ctrl-F7)
-    " REDO: It might be better to expose document.new() and call that early
-    " on. Then we'd have musecnav#document#build(document)
-    if exists('b:musecnav_doc') && !l:rebuild
-"        call Dret("LoadSections - tree already built")
-        return 0
-    endif
-
-    echom "Processing section headers..."
-
-    if l:rebuild || !exists("b:musecnav_doc")
-        " Data from last call to menuizetree function
-        let b:musecnav_data.last_menu_data = []
-        " Most recent display menu lines. Unused but for a decho msg or two.
-        let b:musecnav_data.last_menu_text = []
-    endif
-
-  let b:mtime = reltime()
-  if !exists('b:mutimes') | let b:mutimes = [] | endif
-    let b:musecnav_doc = musecnav#document#build()
-  call add(b:mutimes, reltimestr(reltime(b:mtime)))
-
-    echom "done"
-    redraws
-"    call Dret("LoadSections - result: " . b:musecnav_doc.to_string(1))
-    return 1
-endfunc
 
 " Function s:DrawMenu {{{1
-
+"
 " Show menu representing current state of navigation either above the command
 " line or in a popup window. If not using popups get the user's selection and
-" return it.  Otherwise, popups handle user input in a separate thread so this
-" will always returns -1 immediately in that case.
-func! s:DrawMenu() abort
+" return it.  Otherwise, popups handle user input in a separate context so
+" we'll return -1 immediately in that case.
+"
+function! s:DrawMenu() abort
 "    call Dfunc("DrawMenu()")
-
-    let l:menudata = b:musecnav_doc.render()
+    let l:menudata = b:musecnav.doc.render()
 "    call Decho("Generated menu data: ".musecnav#util#struncate(l:menudata))
 
     let l:idx = 0
     let l:displaymenu = []
     " the row number to highlight (the selected row)
     let l:hirownum = 0
-    let l:maxlen = get(b:, 'musecnav_max_header_len', 0)
+    let l:currsecline = b:musecnav.doc.curr_sec_line()
+    let l:maxlen = get(b:, 'musecnav_max_title_len', 0)
+    if l:maxlen
+        let l:maxlen = max([l:maxlen, s:min_title_length])
+    endif
 
     if !b:musecnav_use_popup
         echom '--------'
@@ -136,25 +133,25 @@ func! s:DrawMenu() abort
 "        call Decho("  process rowitem: " . musecnav#util#struncate(l:rowitem))
         let l:pad = '  '
         " For currently selected menu item insert our marker icon
-        if b:musecnav_doc.currsec.line == l:rowitem[1]
+        if l:currsecline == l:rowitem[1]
             let l:pad = b:musecnav_place_mark . ' '
             let l:hirownum = l:idx + 1
         endif
-    
+
         let l:rowtext = l:rowitem[2]->trim()
         " truncate if necessary
-        if l:maxlen > 0 && l:rowtext->len() > l:maxlen
-            let l:rowtext = l:rowtext->strcharpart(0, l:maxlen-3) . '...'
+        if l:maxlen && l:rowtext->len() > l:maxlen
+            let l:rowtext = l:rowtext->strcharpart(0, l:maxlen) . '..'
         endif
-    
-        " Add padding proportional to current row's section level
+
+        " Indent row text an amount proportional to the section level
         let l:rowtext = repeat(' ', (l:rowlevel - 1) * 2)
                     \ . l:pad . l:rowtext
-        " Prepend menu line numbers and we have one menu item ready to go.
+        " Prepend menu line numbers
         let l:rowtext = printf("%2s", l:idx+1) . ": " . l:rowtext
 "        call Decho("    into rowtext: " . l:rowtext)
         call add(l:displaymenu, l:rowtext)
-    
+
         if !b:musecnav_use_popup
             echom l:rowtext
         endif
@@ -162,17 +159,16 @@ func! s:DrawMenu() abort
     endwhile
     " l:menudata processing loop }}}
 
-    let b:musecnav_data.last_menu_data = l:menudata
-    let b:musecnav_data.last_menu_text = l:displaymenu
-    let b:musecnav_data.last_menu_row = l:hirownum
+    let b:musecnav.last_menu_data = l:menudata
+    let b:musecnav.last_menu_row = l:hirownum
 
     " display the menu popup/drawer {{{
     let l:choice = -1
 "    call Decho("Display menu len: ".len(l:displaymenu)." data: ".musecnav#util#struncate(l:displaymenu))
-    let l:title = ' Up/Down or 1-99 then <Enter> '
     if exists("b:musecnav_batch")
         echom '--------'
     elseif b:musecnav_use_popup
+        let l:title = ' j|k|J|K or row # then <Enter> '
         let l:ww = winwidth(0)
         let l:popcol = min([b:musecnav_pop_col+4, l:ww - strlen(l:title)])
         let popid = popup_menu(l:displaymenu, #{
@@ -188,9 +184,9 @@ func! s:DrawMenu() abort
                     \ filter: 'musecnav#MenuFilter',
                     \ callback: 'musecnav#MenuHandler',
                     \ })
-    
+
         if l:hirownum > 0
-            " last chosen section will be highlighted row
+            " move cursor to most recently selected row, highlighting it
             call win_execute(popid, 'call cursor('.l:hirownum.', 1)')
         endif
     else
@@ -206,16 +202,18 @@ func! s:DrawMenu() abort
 
 "    call Dret("DrawMenu")
     return l:choice
-endfunc
+endfunction
 
 " Function s:ProcessSelection {{{1
-
+"
 " Given user selection of a menu row determine what section that represents
 " and what line number contains it and move the cursor to that line.
+"
 " Params:
 " id - a popup window id or -1 if we're using non-popup menus
 " choice - the user's selection, normally a positive integer
-func! s:ProcessSelection(id, choice) abort
+"
+function! s:ProcessSelection(id, choice) abort
 "    call Dfunc("ProcessSelection(id:".a:id.", choice:".a:choice.")")
     if a:id == -1
         if b:musecnav_use_popup
@@ -224,30 +222,28 @@ func! s:ProcessSelection(id, choice) abort
         endif
     endif
 
-    let l:choiceidx = a:choice - 1
-"    call Decho("User selected ".b:musecnav_data.last_menu_text[l:choiceidx])
-    let l:chosendata = b:musecnav_data.last_menu_data[l:choiceidx]
-"    call Decho("Menu data (".l:choiceidx."): " . musecnav#util#struncate(l:chosendata))
+    let l:menudata = b:musecnav.last_menu_data[a:choice - 1]
+    let l:bufline = l:menudata[1]
+    call b:musecnav.doc.set_curr_sec(l:bufline)
 
-    call b:musecnav_doc.set_current_section(l:chosendata[1])
-
-"    call Decho("Navigate to line ".l:chosendata[1]." (level ".l:chosendata[0].")")
-    exe l:chosendata[1]
+"    call Decho("Navigate to line ".l:bufline)
+    exe l:bufline
     norm! zz
     " Clear the menu digit buffer
     let s:musecnav_select_buf = -1
 "    call Dret("ProcessSelection")
-endfunc
+endfunction
 
 " Function s:ProcessMenuDigit {{{1
 "                                                        ProcessMenuDigit {{{2
 " A bit of a state machine for handling menu row numbers which make it easier
-" for the user to jump to a section header when there are many such headers.
+" for the user to jump to a section when there are many.
+"
 " The total number of headers and whether the user is entering the first or
 " second (if applicable) digit of their choice determine what happens. (e.g.
 " can/should we move to row 2 after the user enters the first digit of 25)
 "                                                                          }}}
-func! s:ProcessMenuDigit(rows, entry) abort
+function! s:ProcessMenuDigit(rows, entry) abort
 "    call Dfunc("ProcessMenuDigit(rows:".a:rows.", entry:".a:entry.")")
     let l:ret = -99
     " non-negative number?
@@ -293,69 +289,72 @@ func! s:ProcessMenuDigit(rows, entry) abort
 
 "    call Dret("ProcessMenuDigit - returning ".l:ret)
     return l:ret
-endfunc
+endfunction
 
 " Function musecnav#navigate {{{1
 "                                                       musecnav#navigate {{{2
 " Main entry point for normal plugin use. Primary hotkeys call this.
 "
-" Contains some setup and sanity checking before calling the local navigate
-" function. Known error types will bubble up to here and get caught and
-" properly messaged while anything else, unknown and therefore considered
-" critical, is allowed to escape.
+" Contains some setup and sanity checking before calling menu building
+" routines.
 "
-" An optional first param can be supplied which will trigger a reset
-" based on the value. The allowed values and associated effects:
+" Known error types will bubble up to here and get caught and properly
+" messaged while anything else, unknown and therefore considered critical, is
+" allowed to escape.
 "
-"     0: Initialize only. Run normally except return before calling Navigate.
-"     1: Reinitialize section tree, ie. force a 'soft' reset
-"     2: Reset state, and reinit tree, ie. force a 'hard' reset
+" An optional first param can be provided to force the clearing of some or all
+" of musecnav's data. The allowed values are:
+"
+"     0: Normal functionalilty. [default]
+"     1: 'Soft' reset: clear header data, redo section scan.
+"     2: 'Hard' reset: clear all state, do a complete rescan of the buffer.
 "
 " Any other value will result in an error.
 "                                                                          }}}
-func! musecnav#navigate(...)
+function! musecnav#navigate(force=0)
 "    call Dfunc("musecnav#navigate(" . join(a:000, ", ") . ")")
-
-    let l:force = 0
-    if a:0 == 1
-        if a:1 >= 0 && a:1 <= 2
-            let l:force = a:1
-        else
-"    "        call Dret("musecnav#navigate - fatal MU14")
-            throw "MU14: force param must have a value between 0 and 2"
-        endif
+    if a:force < 0 || a:force > 2
+"            call Dret("musecnav#navigate - fatal MU14")
+        throw "MU14: force param must have a value between 0 and 2"
     endif
 
-    if &ft !=? 'asciidoc' && &ft !=? 'markdown'
-"        call Dret("musecnav#navigate - Wrong filetype")
+    if &ft !~? '^asciidoc\(tor\)\?' && &ft !=? 'markdown'
         echohl WarningMsg | echom "Not a valid filetype: " . &ft | echohl None
+"        call Dret("musecnav#navigate - Wrong filetype")
         return
     endif
 
     try
+        if !exists('b:musecnav')
+"            call Decho("Initializing b:musecnav")
+            let b:musecnav = {}
+        endif
+
+        if a:force == 1
+"            call Decho("Clearing section data")
+            let b:musecnav.doc = {}
+        elseif a:force == 2
+"            call Decho("Resetting all state")
+            let b:musecnav = {}
+        endif
+
         " Do some file type specific setup and checks
-        if &ft ==? 'asciidoc'
+        if &ft ==? 'asciidoc' || &ft ==? 'asciidoctor'
             if b:musecnav_use_ad_synhi && !exists("g:syntax_on")
                 " For now just quietly disable the double-check
                 let b:musecnav_use_ad_synhi = 0
             endif
-        else " markdown
+            let b:musecnav.adtype = 1
+        else  " markdown
             if !exists("g:syntax_on")
                 echohl WarningMsg
-                echom "Markdown section header detection requires that syntax highlighting be enabled"
+                echom "Musecnav for Markdown requires that syntax "
+                            \ . "highlighting be enabled"
                 echohl None
+"                call Dret("musecnav#navigate - no synhi")
                 return
             endif
-        endif
-
-        if l:force
-"            call Decho("Clearing b:musecnav_doc")
-            unlet! b:musecnav_doc
-        endif
-
-        " REDO: legacy
-        if l:force || !exists('b:musecnav_data')
-            let b:musecnav_data = {}
+            let b:musecnav.adtype = 0
         endif
 
         if exists('b:musecnav_batch')
@@ -367,14 +366,11 @@ func! musecnav#navigate(...)
             echohl WarningMsg
             echom 'Vim 8.1.1517 or later required for the popup-style menu'
             echohl None
+"            call Dret("musecnav#navigate - no popups")
             return
         endif
 
-        if l:force == 2
-            " Hard reset positions cursor at start
-            call setpos('.', [0, 1, 1])
-        endif
-
+        call s:LoadSections()
         call s:ShowMenu()
 "        call Dret("musecnav#navigate")
     catch /^MUXX/
@@ -395,14 +391,17 @@ func! musecnav#navigate(...)
         endif
         echohl None
     endtry
-endfunc
+endfunction
 
 " Function musecnav#MenuFilter {{{1
+"
 " As an enhancement to popup menus we number menu elements (section headers)
 " and allow the user to enter one of those numbers in order to move the
-" selection to that line.  (For large docs with many sections Up/Down just
-" doesn't cut it.)
-func! musecnav#MenuFilter(id, key) abort
+" selection to that line.
+"
+" This is the 'filter' function passed to Vim's popup creation routine.
+"
+function! musecnav#MenuFilter(id, key) abort
     let l:last_key = getwinvar(a:id, 'last_key')
     call setwinvar(a:id, 'last_key', a:key)
 
@@ -423,7 +422,7 @@ func! musecnav#MenuFilter(id, key) abort
         let l:rownum = s:ProcessMenuDigit(popup_getpos(a:id).core_height, a:key)
     elseif match(a:key, '^j$') == 0
         let l:maxrow = popup_getpos(a:id).core_height
-        let l:currow = b:musecnav_data.last_menu_row
+        let l:currow = b:musecnav.last_menu_row
         "let b:musecnav_popup_msg = printf(
         "            \ "Key j received with currow %d and maxrow %d",
         "            \ l:currow, l:maxrow)
@@ -439,14 +438,19 @@ func! musecnav#MenuFilter(id, key) abort
         return 1
     endif
 
-    " No shortcut, pass to generic filter
+    " Not a custom shortcut, pass to generic filter
     return popup_filter_menu(a:id, a:key)
-endfunc
+endfunction
 
 " Function musecnav#MenuHandler {{{1
-" Menus can't callback into script-local code so this must be a global
-" function. This will spawn an updated menu popup unless result param is -1.
-func! musecnav#MenuHandler(id, result) abort
+"
+" This is the 'callback' function passed to Vim's popup creation routine. It
+" updates the section hierarchy in the popup unless an exit key was pressed.
+"
+" Note that popup menus can't callback into script-local code so this must be
+" a global function.
+"
+function! musecnav#MenuHandler(id, result) abort
 "    call Dfunc("MenuHandler(id:".a:id.", result:".a:result.")")
     if a:result < 1
         " FYI -1 indicates user canceled menu while 0 indicates popup_close()
@@ -457,10 +461,10 @@ func! musecnav#MenuHandler(id, result) abort
     call s:ProcessSelection(a:id, a:result)
     call s:DrawMenu()
 "    call Dret("MenuHandler")
-endfunc
+endfunction
 " }}}
 
 let &cpoptions = s:save_cpo
 unlet s:save_cpo
 
-" vim:fdl=2:fdc=3:fdm=marker:fmr={{{,}}}
+" vim:fdl=2:fdm=marker:fmr={{{,}}}
